@@ -122,13 +122,17 @@ function _buildPostBody(bidRequests) {
     } else if (bidRequest.mediaTypes.banner) {
       imp.banner = { format: _sizes(bidRequest.sizes) };
     };
+    if (!utils.isEmpty(bidRequest.fpd)) {
+      imp.fpd = _getAdUnitFpd(bidRequest.fpd);
+    }
     return imp;
   });
 
   let eids = [
-    ...getUnifiedIdEids(bidRequests),
-    ...getIdentityLinkEids(bidRequests),
-    ...getCriteoEids(bidRequests)
+    ...getUnifiedIdEids([bidRequests[0]]),
+    ...getIdentityLinkEids([bidRequests[0]]),
+    ...getCriteoEids([bidRequests[0]]),
+    ...getPubCommonEids([bidRequests[0]])
   ];
 
   if (eids.length > 0) {
@@ -171,8 +175,8 @@ function _getFloor (bid) {
   if (typeof bid.getFloor === 'function') {
     const floorInfo = bid.getFloor({
       currency: 'USD',
-      mediaType: 'banner',
-      size: _sizes(bid.sizes)
+      mediaType: _isInstreamBidRequest(bid) ? 'video' : 'banner',
+      size: '*'
     });
     if (typeof floorInfo === 'object' &&
     floorInfo.currency === 'USD' && !isNaN(parseFloat(floorInfo.floor))) {
@@ -183,12 +187,34 @@ function _getFloor (bid) {
 }
 
 function _getGlobalFpd() {
-  let fpd = {};
+  const fpd = {};
+  const context = {}
+  const user = {};
+
   const fpdContext = Object.assign({}, config.getConfig('fpd.context'));
   const fpdUser = Object.assign({}, config.getConfig('fpd.user'));
 
-  _addEntries(fpd, fpdContext);
-  _addEntries(fpd, fpdUser);
+  _addEntries(context, fpdContext);
+  _addEntries(user, fpdUser);
+
+  if (!utils.isEmpty(context)) {
+    fpd.context = context;
+  }
+  if (!utils.isEmpty(user)) {
+    fpd.user = user;
+  }
+  return fpd;
+}
+
+function _getAdUnitFpd(adUnitFpd) {
+  const fpd = {};
+  const context = {};
+
+  _addEntries(context, adUnitFpd.context);
+
+  if (!utils.isEmpty(context)) {
+    fpd.context = context;
+  }
 
   return fpd;
 }
@@ -214,20 +240,24 @@ function _getExt(schain, fpd) {
   return ext;
 }
 
-function getUnifiedIdEids(bidRequests) {
-  return getEids(bidRequests, 'tdid', 'adserver.org', 'TDID');
+function getUnifiedIdEids(bidRequest) {
+  return getEids(bidRequest, 'tdid', 'adserver.org', 'TDID');
 }
 
-function getIdentityLinkEids(bidRequests) {
-  return getEids(bidRequests, 'idl_env', 'liveramp.com', 'idl');
+function getIdentityLinkEids(bidRequest) {
+  return getEids(bidRequest, 'idl_env', 'liveramp.com', 'idl');
 }
 
-function getCriteoEids(bidRequests) {
-  return getEids(bidRequests, 'criteoId', 'criteo.com', 'criteoId');
+function getCriteoEids(bidRequest) {
+  return getEids(bidRequest, 'criteoId', 'criteo.com', 'criteoId');
 }
 
-function getEids(bidRequests, type, source, rtiPartner) {
-  return bidRequests
+function getPubCommonEids(bidRequest) {
+  return getEids(bidRequest, 'pubcid', 'pubcid.org', 'pubcid');
+}
+
+function getEids(bidRequest, type, source, rtiPartner) {
+  return bidRequest
     .map(getUserId(type)) // bids -> userIds of a certain type
     .filter((x) => !!x) // filter out null userIds
     .map(formatEid(source, rtiPartner)); // userIds -> eid objects
@@ -292,6 +322,18 @@ function _buildResponseObject(bidderRequest, bid) {
 
     if (bid.advertiser_name) {
       bidResponse.meta.advertiserName = bid.advertiser_name;
+    }
+
+    if (bid.adomain && bid.adomain.length) {
+      bidResponse.meta.advertiserDomains = bid.adomain;
+    }
+
+    if (bid.tl_source && bid.tl_source == 'hdx') {
+      bidResponse.meta.mediaType = 'banner';
+    }
+
+    if (bid.tl_source && bid.tl_source == 'tlx') {
+      bidResponse.meta.mediaType = 'native';
     }
   };
   return bidResponse;
