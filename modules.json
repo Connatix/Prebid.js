@@ -12,6 +12,7 @@
     "medianetBidAdapter",
     "admanBidAdapter",
     "ironsourceBidAdapter",
+    "synacormediaBidAdapter",
     "adpod",
     "consentManagement",
     "gdprEnforcement",
