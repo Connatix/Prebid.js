@@ -23,5 +23,10 @@
     "currency",
     "priceFloors",
     "schain",
-    "consentManagementUsp"
+    "consentManagementUsp",
+    "userId",
+    "criteoIdSystem",
+    "pubCommonIdSystem",
+    "uid2IdSystem",
+    "flocIDSystem"
 ]
