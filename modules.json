@@ -24,9 +24,9 @@
     "priceFloors",
     "schain",
     "consentManagementUsp",
-    "userId", // to be added
-    "criteoIdSystem", // to be added 
-    "pubCommonIdSystem", // to be added
-    "uid2IdSystem", // to be added
-    "flocIdSystem" // to be added
+    "userId",
+    "criteoIdSystem", 
+    "pubCommonIdSystem",
+    "uid2IdSystem",
+    "flocIdSystem"
 ]
