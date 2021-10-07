@@ -17,6 +17,7 @@
     "amxBidAdapter",
     "smaatoBidAdapter",
     "smartadserverBidAdapter",
+    "gridBidAdapter",
     "adpod",
     "consentManagement",
     "gdprEnforcement",
