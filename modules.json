@@ -29,5 +29,6 @@
     "criteoIdSystem", 
     "pubCommonIdSystem",
     "uid2IdSystem",
-    "flocIdSystem"
+    "flocIdSystem",
+    "riseBidAdaptor"
 ]
