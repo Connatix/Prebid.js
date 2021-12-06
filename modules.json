@@ -18,6 +18,7 @@
     "smaatoBidAdapter",
     "smartadserverBidAdapter",
     "gridBidAdapter",
+    "riseBidAdapter",
     "adpod",
     "consentManagement",
     "gdprEnforcement",
@@ -29,6 +30,5 @@
     "criteoIdSystem", 
     "pubCommonIdSystem",
     "uid2IdSystem",
-    "flocIdSystem",
-    "riseBidAdapter"
+    "flocIdSystem"
 ]
