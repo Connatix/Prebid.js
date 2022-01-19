@@ -27,7 +27,7 @@
     "consentManagementUsp",
     "userId",
     "criteoIdSystem",
-    "pubCommonId",
+    "sharedIdSystem",
     "uid2IdSystem",
     "flocIdSystem"
 ]
