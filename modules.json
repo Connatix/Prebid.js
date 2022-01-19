@@ -1,7 +1,6 @@
 [
     "appnexusBidAdapter",
     "ixBidAdapter",
-    "lkqdBidAdapter",
     "oneVideoBidAdapter",
     "openxBidAdapter",
     "pubmaticBidAdapter",
@@ -11,7 +10,6 @@
     "telariaBidAdapter",
     "medianetBidAdapter",
     "admanBidAdapter",
-    "ironsourceBidAdapter",
     "synacormediaBidAdapter",
     "undertoneBidAdapter",
     "amxBidAdapter",
@@ -19,6 +17,7 @@
     "smartadserverBidAdapter",
     "gridBidAdapter",
     "riseBidAdapter",
+    "yahoosspBidAdapter",
     "adpod",
     "consentManagement",
     "gdprEnforcement",
@@ -27,8 +26,8 @@
     "schain",
     "consentManagementUsp",
     "userId",
-    "criteoIdSystem", 
-    "pubCommonIdSystem",
+    "criteoIdSystem",
+    "pubCommonId",
     "uid2IdSystem",
     "flocIdSystem"
 ]
