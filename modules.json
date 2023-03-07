@@ -5,6 +5,7 @@
     "pubmaticBidAdapter",
     "rhythmoneBidAdapter",
     "rubiconBidAdapter",
+    "connatixBidAdapter",
     "spotxBidAdapter",
     "telariaBidAdapter",
     "medianetBidAdapter",
