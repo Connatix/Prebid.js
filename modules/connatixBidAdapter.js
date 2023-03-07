@@ -1,9 +1,24 @@
-import { isFn, deepAccess, logMessage, logError } from '../src/utils.js';
-import { convertOrtbRequestToProprietaryNative } from '../src/native.js';
+import {
+  isFn,
+  deepAccess,
+  logMessage,
+  logError
+} from '../src/utils.js';
+import {
+  convertOrtbRequestToProprietaryNative
+} from '../src/native.js';
 
-import { registerBidder } from '../src/adapters/bidderFactory.js';
-import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
-import { config } from '../src/config.js';
+import {
+  registerBidder
+} from '../src/adapters/bidderFactory.js';
+import {
+  BANNER,
+  NATIVE,
+  VIDEO
+} from '../src/mediaTypes.js';
+import {
+  config
+} from '../src/config.js';
 
 const BIDDER_CODE = 'connatix';
 const AD_URL = 'http://wuttudu.com/pbjs';
@@ -25,9 +40,15 @@ function isBidResponseValid(bid) {
 }
 
 function getPlacementReqData(bid) {
-  const { params, bidId, mediaTypes } = bid;
+  const {
+    params,
+    bidId,
+    mediaTypes
+  } = bid;
   const schain = bid.schain || {};
-  const { placementId } = params;
+  const {
+    placementId
+  } = params;
   const bidfloor = getBidFloor(bid);
 
   const placement = {
@@ -70,7 +91,11 @@ export const spec = {
   supportedMediaTypes: [BANNER, VIDEO, NATIVE],
 
   isBidRequestValid: (bid = {}) => {
-    const { params, bidId, mediaTypes } = bid;
+    const {
+      params,
+      bidId,
+      mediaTypes
+    } = bid;
     let valid = Boolean(bidId && params && params.placementId);
 
     if (mediaTypes && mediaTypes[BANNER]) {
@@ -83,7 +108,7 @@ export const spec = {
   buildRequests: (validBidRequests = [], bidderRequest = {}) => {
     // convert Native ORTB definition to old-style prebid native definition
     validBidRequests = convertOrtbRequestToProprietaryNative(validBidRequests);
-    console.log(validBidRequests,bidderRequest);
+    console.log(validBidRequests, bidderRequest);
     requestId = bidderRequest.bids[0].bidId;
     let deviceWidth = 0;
     let deviceHeight = 0;
@@ -148,7 +173,10 @@ export const spec = {
       let resItem = serverResponse.body[i];
       if (isBidResponseValid(resItem)) {
         const advertiserDomains = resItem.adomain && resItem.adomain.length ? resItem.adomain : [];
-        resItem.meta = { ...resItem.meta, advertiserDomains };
+        resItem.meta = {
+          ...resItem.meta,
+          advertiserDomains
+        };
         resItem.netRevenue = false;
         resItem.ad = wrapAd(resItem);
         response.push(resItem);
@@ -188,20 +216,15 @@ function wrapAd(bid) {
     <head>
         <meta charset="UTF-8">
         <title></title>
-        <script src="https://st.astraone.io/prebidrenderer.js"></script>
+        <script>!function (n) { if (!window.cnx) { window.cnx = {}, window.cnx.cmd = []; var t = n.createElement('iframe'); t.src = 'javascript:false'; t.display = 'none', t.onload = function () { var n = t.contentWindow.document, c = n.createElement('script'); c.src = '//cd.connatix.com/connatix.player.js?cid=99f20d18-c4b4-4a28-8d8e-d43e2c8cb4ac', c.setAttribute('async', '1'), c.setAttribute('type', 'text/javascript'), n.body.appendChild(c) }, n.head.appendChild(t) } }(document);</script>
+
         <style>html, body {width: 100%; height: 100%; margin: 0;}</style>
     </head>
     <body>
-        <div data-hyb-ssp-in-image-overlay="test" style="width: 100%; height: 100%;"></div>
-        <script>
-            if (parent.window.frames[window.name]) {
-                var parentDocument = window.parent.document.getElementById(parent.window.frames[window.name].name);
-                parentDocument.style.height = "100%";
-                parentDocument.style.width = "100%";
-            }
-            var _html = "${encodeURIComponent(JSON.stringify({...bid}))}";
-            window._ao_ssp.registerInImage(JSON.parse(decodeURIComponent(_html)));
-        </script>
+    <script id="32b84638d9c1430e9934b4a1373173bb">(new Image()).src = 'https://capi.connatix.com/tr/si?token=bdc31711-adcf-441c-a12b-5be3f96493b2&cid=99f20d18-c4b4-4a28-8d8e-d43e2c8cb4ac'; cnx.cmd.push(function () {
+      cnx({
+          playerId: "bdc31711-adcf-441c-a12b-5be3f96493b2",
+      }).render("32b84638d9c1430e9934b4a1373173bb")});</script>
     </body>
   </html>`;
 }
