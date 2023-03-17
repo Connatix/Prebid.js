@@ -148,6 +148,7 @@ export const spec = {
         width: bidResponse.width,
         height: bidResponse.height,
         creativeId: bidResponse.creativeId,
+        // TODO: check if we'll get netRevenue from the server
         netRevenue: true,
         ttl: bidResponse.ttl || DEFAULT_MAX_TTL,
         referrer: bidResponse.referrer,
