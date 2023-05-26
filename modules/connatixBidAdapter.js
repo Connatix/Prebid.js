@@ -16,7 +16,7 @@ import {
 } from '../src/mediaTypes.js';
 
 const BIDDER_CODE = 'connatix';
-const AD_URL = 'https://placeholder.com/pbjs';
+const AD_URL = 'https://capi.connatix.com/rtb/hba';
 const SYNC_URL = 'https://placeholder.com/sync';
 const DEFAULT_MAX_TTL = '3600';
 const DEFAULT_CURRENCY = 'USD';
@@ -93,18 +93,12 @@ export const spec = {
   Determine the host and page from the bidderRequest's refferUrl, and include ccpa and gdpr consents.
   Return an object containing the request method, url, and the constructed payload. */
   buildRequests: (validBidRequests = [], bidderRequest = {}) => {
-    const ccpa = bidderRequest.uspConsent || undefined;
-    const gdpr = bidderRequest.gdprConsent || undefined;
-
     let refferLocation;
     try {
       refferLocation = bidderRequest.refferUrl && new URL(bidderRequest.refferUrl);
     } catch (e) {
       logMessage(e);
     }
-
-    const host = refferLocation ? refferLocation.host : window.top.location.host;
-    const page = refferLocation ? refferLocation.pathname : window.top.location.pathname;
 
     const bidRequests = validBidRequests.map(bid => {
       const {
@@ -123,11 +117,14 @@ export const spec = {
     });
 
     const requestPayload = {
-      host,
-      page,
+      ortb2: bidderRequest.ortb2,
+      gdprConsent: bidderRequest.gdprConsent,
+      uspConsent: bidderRequest.uspConsent,
+      refererInfo: {
+        ...bidderRequest.refererInfo,
+        ref: bidderRequest.page
+      },
       bidRequests,
-      ccpa,
-      gdpr,
     }
 
     return {
