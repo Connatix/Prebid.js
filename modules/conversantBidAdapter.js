@@ -12,7 +12,7 @@ const URL = 'https://web.hb.ad.cpe.dotomi.com/cvx/client/hb/ortb/25';
 export const spec = {
   code: BIDDER_CODE,
   gvlid: GVLID,
-  aliases: ['cnvr'], // short code
+  aliases: ['cnvr', 'epsilon'], // short code
   supportedMediaTypes: [BANNER, VIDEO],
 
   /**
@@ -124,6 +124,9 @@ export const spec = {
     const payload = {
       id: requestId,
       imp: conversantImps,
+      source: {
+        tid: requestId
+      },
       site: {
         id: siteId,
         mobile: document.querySelector('meta[name="viewport"][content*="width=device-width"]') !== null ? 1 : 0,

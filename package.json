@@ -1,12 +1,13 @@
 {
   "name": "prebid.js",
-  "version": "7.45.0",
+  "version": "7.54.0",
   "description": "Header Bidding Management Library",
   "main": "src/prebid.js",
   "scripts": {
     "serve": "gulp serve",
     "test": "gulp test",
-    "lint": "gulp lint"
+    "lint": "gulp lint",
+    "build:connatix": "gulp build-bundle-prod --disable NATIVE --modules=modules.json"
   },
   "repository": {
     "type": "git",
