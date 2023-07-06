@@ -17,7 +17,7 @@ var adUnits = [
 	{
 		code: '1',
 		mediaTypes: {
-			video: {
+			banner: {
 				sizes: [[640, 480], [320, 180]],
 			},
 		},
@@ -25,7 +25,8 @@ var adUnits = [
 			{
 				bidder: 'connatix',
 				params: {
-					placementId: 'e4984e88-9ff4-45a3-8b9d-33aabcad634e', //required
+					placementId: 'e4984e88-9ff4-45a3-8b9d-33aabcad634e', // required
+					bidfloor: 2.5, // optional
 				},
 			},
 			// Add more bidders and their parameters as needed
