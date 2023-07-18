@@ -51,7 +51,7 @@ export function wrapAd(lineItems, requestId, playerId, customerId) {
     }
   };
   var scriptSrc = `//cd.connatix.com/connatix.player.js?cid=${customerId}`;
-  return `<!DOCTYPE html>
+  var ad = `<!DOCTYPE html>
       <html lang="en">
       <head>
           <meta charset="UTF-8">
@@ -63,6 +63,22 @@ export function wrapAd(lineItems, requestId, playerId, customerId) {
         <script id="${requestId}">(new Image()).src = 'https://capi.connatix.com/tr/si?token=${playerId}&cid=${customerId}';  cnx.cmd.push(function() {    cnx({      playerId: "${playerId}", settings: ${JSON.stringify(settings)} }).render("${requestId}");  });</script>
       </body>
     </html>`;
+
+  // Create an iframe element
+  var iframe = document.createElement('iframe');
+  // Set iframe attributes
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  // Add the iframe to the document or a specific container
+  document.getElementById('ad_slot').appendChild(iframe);
+  // Get the iframe's document
+  var doc = iframe.contentDocument || iframe.contentWindow.document;
+  // Write the HTML string to the iframe document
+  doc.open();
+  doc.write(ad);
+  doc.close();
+
+  return ad;
 };
 
 export const spec = {
@@ -140,6 +156,14 @@ export const spec = {
      * Returns an array of bid responses by extracting and formatting the server response
      */
   interpretResponse: (serverResponse) => {
+    /*  Test page: https://assets.connatix.com/Elements/22eed3a1-07f3-4bce-94f6-8c1ae21da4c7/Prebid_Standalone_test_page.html */
+    const { PlayerId, CustomerId, Bids } = serverResponse.body;
+    if (!PlayerId || !CustomerId || !Bids) {
+      // eslint-disable-next-line no-template-curly-in-string
+      var serverResponseJSONString = '{"body":{"PlayerId":"e4984e88-9ff4-45a3-8b9d-33aabcad634e","CustomerId":"99f20d18-c4b4-4a28-8d8e-d43e2c8cb4ac","Bids":[{"RequestId":"21cb54857820cd","Cpm":8,"Ttl":86400,"LineItems":[{"LineItem":{"PublisherLineItemId":"81199cb2-99c9-4b26-9b9a-37efe8821977","AdvertiserLineItemId":"d09815c9-6e65-43c8-984a-f4ad178ab5b5","Url":null,"Type":2,"RequireSoundOn":false,"RequireViewability":false,"RemoveOutOfFocus":false,"GdprvId":"12","Trackers":null,"Duration":0,"Renditions":null,"MediaCreativeId":null,"IgnoreFilledRequests":true,"RequestsCap":1,"ImpressionsCap":null,"Priority":1,"PbjsTimeout":1000,"MediaCreativeClickUrl":null,"RequestsCapTimeframe":0,"ImpressionsCapTimeframe":0,"CapType":0,"CreativeHlsFileName":null,"TimeBetweenRequests":null,"MediaTargeting":null,"MediaKeywordsTargeting":null,"MediaLanguageTargeting":null,"AdType":0,"OverlayTime":null,"FloorPrice":8,"DemandPartnerInfo":{"Name":"Beeswax","DealId":"Connatix-BPM-TheBlackTux-Weddings","BuyersId":null,"TagId":null,"PublisherId":null,"BaseDemandPartnerName":null,"ExcludePmpObject":false,"NetworkExpiryTime":86400},"AdBreakSettings":null,"OutOfViewPauseType":0,"MoatTrackingEnabled":false,"CreativeId":"7c8df0c1-ff37-42ab-8270-77286c330553","EnableVerticalAd":false,"BlockedDomainsRevisionNumber":null,"AdvertiserContextualTargeting":[{"Filters":[{"Type":0,"Level":0,"HashedItemsIds":["d606168ba6d66655ea51effc1e6aca6c","74495cb3cc8737ce61e22520fb318caa","d4594abaaa3bc931da08158994cf9e9a","508fbedb028c2c1884502294ed328a93","e340dc83bc6529e84bbc7d2d4a994de1","a3dc95b127a7c0cc2cdf03c46f61e1f3","24193c467467ff2f16367f8ec8a7fd5f"]}]},{"Filters":[{"Type":0,"Level":1,"HashedItemsIds":["d606168ba6d66655ea51effc1e6aca6c","74495cb3cc8737ce61e22520fb318caa","d4594abaaa3bc931da08158994cf9e9a","508fbedb028c2c1884502294ed328a93","e340dc83bc6529e84bbc7d2d4a994de1","a3dc95b127a7c0cc2cdf03c46f61e1f3","24193c467467ff2f16367f8ec8a7fd5f"]}]}],"PublisherContextualTargeting":null,"PlayerSizeTargetings":null,"AmazonDealId":null,"PlayerOrientationTargeting":0,"SkipMin":6,"Skippability":0,"AdOpportunityForceCalling":false,"NetworkExpiryTime":86400,"NonlinearLineItemSettings":null,"NewFloorPrices":{"FloorPrices":[],"Recommended":0},"PrebidParams":null,"IsPmp":true,"QueryJsTargeting":[],"AdxInfoModel":null,"IntentIQ":null,"GrossNetPercentageDifference":null,"IIQSource":"Beeswax"},"Bids":[{"WinNoticeUrl":null,"AdQualityCheckUrl":null,"Content":"<VAST version=\'3.0\'><Ad id=\'3919\'><Wrapper><Error><![CDATA[https://us-east-1.event.prod.bidr.io/log/vasterror?error_event=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGM8eIBQyA2N0eA==&error_code=[ERRORCODE]]]></Error><AdSystem>Beeswax</AdSystem><VASTAdTagURI><![CDATA[https://vast.extremereach.io/vast?line_item=15798525&subid1=novpaid&er_pm=&er_ar=0&us_privacy=${US_PRIVACY}&er_did=&ba_cb=385236447]]></VASTAdTagURI><Impression><![CDATA[https://us-east-1.event.prod.bidr.io/log/imp/ctx?sie=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggwD4oAWAAeM8egAEUkgEDY3R4oAHsgAOoAQDCAQDKAR9ibGlzc3BvaW50LTk1ODg3YTAxNDM0OWMzYWM4Y2Q10gEjQklEX1JFUVVFU1RfUExBVEZPUk1fREVWSUNFX1RZUEU6UEPaAQ4yMDIzMDYxNTA0MDAwMOIBHhIECAUQARIECAIQARIECAMQARIECAQQARIECAEQAeoBF2lwLjo6ZmZmZjoxOC4xOTAuMTU2LjEy-gEVDccSYj8SDvgEAQEAAAAAAAAAAAAA&wp=8&fie=IMA-ShAYgJvuAkIHYmVlc3dheEgBaggIARAAGAAgAHDAPooBEAoFCMA-EAERAAAAAAAA8D_yAQIYAA==&]]></Impression><Creatives><Creative><Linear><TrackingEvents><Tracking event=\'start\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggAUDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'firstQuartile\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggAkDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'midpoint\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggA0DPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'thirdQuartile\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggBEDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'complete\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggBUDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'mute\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggB0DPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'unmute\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggCEDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'pause\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggCUDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'resume\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggCkDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'fullscreen\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggC0DPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking><Tracking event=\'close\'><![CDATA[https://us-east-1.event.prod.bidr.io/log/act/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHggDEDPHkgUUgNjdHhgAHoeEgQIARABEgQIAhABEgQIBBABEgQIAxABEgQIBRAB&]]></Tracking></TrackingEvents><VideoClicks><ClickTracking><![CDATA[https://us-east-1.event.prod.bidr.io/log/clk/ctx?ai=ChIIiuCu7wUQrS4Yq4rz17bF_wISFAoKYmxpc3Nwb2ludBACGOERILchGgNjdHg4zx5AFEgBUgNjdHhgAHoeEgQIAhABEgQIBBABEgQIAxABEgQIBRABEgQIARAB&audit_flag_wp=8]]></ClickTracking></VideoClicks></Linear></Creative></Creatives><Extensions></Extensions></Wrapper></Ad></VAST>","EncryptedPrice":"BfD+jrjeEewG9y8zQrSv4hUvCpLcSj3F6DP5VC1LrBU=","CreativeId":"blisspoint-3919","SeatId":"beeswax","Adomain":"theblacktux.com","SyncedUser":false,"RequestedFloorPrice":8,"CampaignId":"2273","Width":0,"Height":0,"BillingNoticeUrls":[],"Mime":null,"BidPrice":-37,"DspId":null,"CnxBidId":"3e0c8f5c-6992-48b7-a603-14d5b962f217","LogAuctionInformation":false,"NumberOfBids":1,"NumberOfSeatBids":1,"RequestTime":32,"DealId":"Connatix-BPM-TheBlackTux-Weddings","AuctionType":1,"AuctionBidId":"CIrgru8FEK0uGKuK89e2xf8C","BidId":"beeswax/blisspoint","FloorPriceInformation":{"FloorPrices":[8],"FloorPriceIndexUsed":0,"FloorPriceFactorBypassReason":0,"AdxPredictedFloorPrice":null},"Discount":null,"LiveRamp":0,"ServerBillingNoticeUrls":null,"IIQData":{"EIDs":{},"ABGroup":0,"IIQUserSync":null}}]}]}]},"headers":{}}';
+      serverResponse = JSON.parse(serverResponseJSONString);
+    }
+
     const responseBody = serverResponse.body;
     const bids = responseBody.Bids;
     const playerId = responseBody.PlayerId;
