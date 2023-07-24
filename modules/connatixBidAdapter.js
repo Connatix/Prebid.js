@@ -14,6 +14,7 @@ import {
 
 const BIDDER_CODE = 'connatix';
 const AD_URL = 'https://capi.connatix.com/rtb/hba';
+const SYNC_URL = 'https://assets.connatix.com/Elements/22eed3a1-07f3-4bce-94f6-8c1ae21da4c7/Standalone_user_sync4.html?pbjs=1';
 const DEFAULT_MAX_TTL = '3600';
 const DEFAULT_CURRENCY = 'USD';
 
@@ -197,7 +198,27 @@ export const spec = {
      * NOTE: We don't do user sync for now
      */
   getUserSyncs: (syncOptions, serverResponses, gdprConsent, uspConsent, gppConsent) => {
-    return [];
+    if (!syncOptions.iframeEnabled) {
+      return [];
+    }
+
+    var syncUrl = SYNC_URL;
+
+    if (gdprConsent && gdprConsent.consentString) {
+      if (typeof gdprConsent.gdprApplies === 'boolean') {
+        syncUrl += `&gdpr=${Number(gdprConsent.gdprApplies)}&gdpr_consent=${gdprConsent.consentString}`;
+      } else {
+        syncUrl += `&gdpr=0&gdpr_consent=${gdprConsent.consentString}`;
+      }
+    }
+    if (uspConsent && uspConsent.consentString) {
+      syncUrl += `&ccpa_consent=${uspConsent.consentString}`;
+    }
+
+    return [{
+      type: 'iframe',
+      url: syncUrl
+    }];
   }
 };
 
