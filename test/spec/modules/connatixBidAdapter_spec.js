@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import {
   spec,
-  getBidFloor as connatixGetBidFloor,
-  wrapAd as connatixWrapAd
+  getBidFloor as connatixGetBidFloor
 } from '../../../modules/connatixBidAdapter.js';
 import { BANNER } from '../../../src/mediaTypes.js';
 
@@ -262,43 +261,6 @@ describe('connatixBidAdapter', function () {
       };
       const floor = connatixGetBidFloor(bid);
       expect(floor).to.equal(0);
-    });
-  });
-
-  describe('wrapAd', function () {
-    const lineItems = [{
-      LineItem: {},
-      Bids: {},
-    }];
-
-    const requestId = 'requestId';
-    const customerId = '99f20d18-c4b4-4a28-3d8e-d43e2c8cb4ac';
-    const playerId = 'e4984e88-9ff4-45a3-8b9d-33aabcad634f';
-
-    let inApp;
-    this.beforeEach(function () {
-      bid = mockBidRequest();
-      inApp = false;
-    });
-
-    it('Should return a string containing the Connatix player grab code with the bid injected through external JS API', function () {
-      const ad = connatixWrapAd(lineItems, requestId, playerId, customerId, inApp);
-      expect(ad).to.be.an('string').that.is.not.empty;
-    });
-
-    it('Should return a string that contains requestId, customerId and playerId', function () {
-      const ad = connatixWrapAd(lineItems, requestId, playerId, customerId, inApp);
-      expect(ad).to.contains(requestId);
-      expect(ad).to.contains(customerId);
-      expect(ad).to.contains(playerId);
-
-      const settingsJson = {
-        advertising: {
-          standaloneLineItems: lineItems
-        }
-      };
-      const settingsJsonString = JSON.stringify(settingsJson);
-      expect(ad).to.contains(settingsJsonString);
     });
   });
 });
