@@ -209,8 +209,108 @@ describe('connatixBidAdapter', function () {
   });
 
   describe('getUserSyncs', function() {
-    it('Returns always an empty array because we do not do user sync for now', function () {
-      expect(spec.getUserSyncs({}, [], {}, {}, {})).to.be.an('array').that.is.empty;
+    const CustomerId = '99f20d18-c4b4-4a28-3d8e-d43e2c8cb4ac';
+    const PlayerId = 'e4984e88-9ff4-45a3-8b9d-33aabcad634f';
+    const UserSyncEndpoint = 'https://connatix.com/sync'
+    const Bid = {Cpm: 0.1, LineItems: [], RequestId: '2f897340c4eaa3', Ttl: 86400};
+
+    const serverResponse = {
+      body: {
+        CustomerId,
+        PlayerId,
+        UserSyncEndpoint,
+        Bids: [ Bid ]
+      },
+      headers: function() { }
+    };
+
+    it('Should return an empty array when iframeEnabled: false', function () {
+      expect(spec.getUserSyncs({iframeEnabled: false, pixelEnabled: true}, [], {}, {}, {})).to.be.an('array').that.is.empty;
+    });
+    it('Should return an empty array when serverResponses is emprt array', function () {
+      expect(spec.getUserSyncs({iframeEnabled: true, pixelEnabled: true}, [], {}, {}, {})).to.be.an('array').that.is.empty;
+    });
+    it('Should return an empty array when iframeEnabled: true but serverResponses in an empty array', function () {
+      expect(spec.getUserSyncs({iframeEnabled: false, pixelEnabled: true}, [serverResponse], {}, {}, {})).to.be.an('array').that.is.empty;
+    });
+    it('Should return an empty array when iframeEnabled: true but serverResponses in an not defined or null', function () {
+      expect(spec.getUserSyncs({iframeEnabled: false, pixelEnabled: true}, undefined, {}, {}, {})).to.be.an('array').that.is.empty;
+      expect(spec.getUserSyncs({iframeEnabled: false, pixelEnabled: true}, null, {}, {}, {})).to.be.an('array').that.is.empty;
+    });
+    it('Should return one user sync object when iframeEnabled is true and serverResponses is not an empry array', function () {
+      expect(spec.getUserSyncs({iframeEnabled: true, pixelEnabled: true}, [serverResponse], {}, {}, {})).to.be.an('array').that.is.not.empty;
+    });
+    it('Should return a list containing a single object having type: iframe and url: syncUrl', function () {
+      const userSyncList = spec.getUserSyncs({iframeEnabled: true, pixelEnabled: true}, [serverResponse], undefined, undefined, undefined);
+      const { type, url } = userSyncList[0];
+      expect(type).to.equal('iframe');
+      expect(url).to.equal(UserSyncEndpoint);
+    });
+    it('Should append gdpr: 0 if gdprConsent object is provided but gdprApplies field is not provided', function () {
+      const userSyncList = spec.getUserSyncs(
+        {iframeEnabled: true, pixelEnabled: true},
+        [serverResponse],
+        {},
+        undefined,
+        undefined
+      );
+      const { url } = userSyncList[0];
+      expect(url).to.equal(`${UserSyncEndpoint}?gdpr=0`);
+    });
+    it('Should append gdpr having the value of gdprApplied if gdprConsent object is present and have gdprApplies field', function () {
+      const userSyncList = spec.getUserSyncs(
+        {iframeEnabled: true, pixelEnabled: true},
+        [serverResponse],
+        {gdprApplies: true},
+        undefined,
+        undefined
+      );
+      const { url } = userSyncList[0];
+      expect(url).to.equal(`${UserSyncEndpoint}?gdpr=1`);
+    });
+    it('Should append gdpr_consent if gdprConsent object is present and have gdprApplies field', function () {
+      const userSyncList = spec.getUserSyncs(
+        {iframeEnabled: true, pixelEnabled: true},
+        [serverResponse],
+        {gdprApplies: true, consentString: 'alabala'},
+        undefined,
+        undefined
+      );
+      const { url } = userSyncList[0];
+      expect(url).to.equal(`${UserSyncEndpoint}?gdpr=1&gdpr_consent=alabala`);
+    });
+    it('Should encodeURI gdpr_consent corectly', function () {
+      const userSyncList = spec.getUserSyncs(
+        {iframeEnabled: true, pixelEnabled: true},
+        [serverResponse],
+        {gdprApplies: true, consentString: 'test&2'},
+        undefined,
+        undefined
+      );
+      const { url } = userSyncList[0];
+      expect(url).to.equal(`${UserSyncEndpoint}?gdpr=1&gdpr_consent=test%262`);
+    });
+    it('Should append usp_consent to the url if uspConsent is provided', function () {
+      const userSyncList = spec.getUserSyncs(
+        {iframeEnabled: true, pixelEnabled: true},
+        [serverResponse],
+        {gdprApplies: true, consentString: 'test&2'},
+        '1YYYN',
+        undefined
+      );
+      const { url } = userSyncList[0];
+      expect(url).to.equal(`${UserSyncEndpoint}?gdpr=1&gdpr_consent=test%262&us_privacy=1YYYN`);
+    });
+    it('Should not modify the sync url if gppConsent param is provided', function () {
+      const userSyncList = spec.getUserSyncs(
+        {iframeEnabled: true, pixelEnabled: true},
+        [serverResponse],
+        {gdprApplies: true, consentString: 'test&2'},
+        '1YYYN',
+        {consent: '1'}
+      );
+      const { url } = userSyncList[0];
+      expect(url).to.equal(`${UserSyncEndpoint}?gdpr=1&gdpr_consent=test%262&us_privacy=1YYYN`);
     });
   });
 
