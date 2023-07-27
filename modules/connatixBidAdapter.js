@@ -173,12 +173,13 @@ export const spec = {
     }
 
     const syncUrlFallback = 'https://assets.connatix.com/Elements/22eed3a1-07f3-4bce-94f6-8c1ae21da4c7/Standalone_user_sync4.html';
-    const syncUrl = serverResponses[0].UserSyncEndpoint || syncUrlFallback;
+    const syncUrl = serverResponses[0].body.UserSyncEndpoint || syncUrlFallback;
     const queryParams = Object.keys(params).length > 0 ? formatQS(params) : '';
 
+    const url = queryParams ? `${syncUrl}?${queryParams}` : syncUrl;
     return [{
       type: 'iframe',
-      url: syncUrl + queryParams,
+      url
     }];
   }
 };
