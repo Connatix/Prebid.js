@@ -15,7 +15,7 @@ import {
 } from '../src/mediaTypes.js';
 
 const BIDDER_CODE = 'connatix';
-const AD_URL = 'https://capi.connatix.com/rtb/hba';
+const AD_URL = 'https://capi-795bd5e8-bd5c-4013-9d02-87300bb59c7f.stg.connatix.com/rtb/hba';
 const DEFAULT_MAX_TTL = '3600';
 const DEFAULT_CURRENCY = 'USD';
 
@@ -113,6 +113,7 @@ export const spec = {
    * Interpret the server response and create an array of bid responses by extracting and formatting
    * relevant information such as requestId, cpm, ttl, width, height, creativeId, referrer and ad
    * Returns an array of bid responses by extracting and formatting the server response
+   * Test page: https://assets.connatix.com/Elements/22eed3a1-07f3-4bce-94f6-8c1ae21da4c7/Prebid_Standalone_test_page.html
    */
   interpretResponse: (serverResponse) => {
     const responseBody = serverResponse.body;
