@@ -131,11 +131,11 @@ export const spec = {
       currency: 'USD',
       mediaType: BANNER,
       netRevenue: true,
-      width: bidResponse.Width,
-      height: bidResponse.Height,
-      creativeId: bidResponse.CreativeId,
+      width: bidResponse.Width || 1720,
+      height: bidResponse.Height || 511,
+      creativeId: bidResponse.CreativeId || '2d4dwd3d',
       referrer: bidResponse.Referrer,
-      ad: bidResponse.Ad,
+      ad: '<html><body><h1>Ad</h1></body></html>',
     }));
   },
 
@@ -171,7 +171,8 @@ export const spec = {
       params['us_privacy'] = encodeURIComponent(uspConsent);
     }
 
-    const syncUrl = serverResponses[0].UserSyncEndpoint;
+    const syncUrlFallback = 'https://assets.connatix.com/Elements/22eed3a1-07f3-4bce-94f6-8c1ae21da4c7/Standalone_user_sync4.html';
+    const syncUrl = serverResponses[0].UserSyncEndpoint || syncUrlFallback;
     const queryParams = Object.keys(params).length > 0 ? formatQS(params) : '';
 
     return [{
