@@ -114,7 +114,7 @@ describe('connatixBidAdapter', function () {
       expect(serverRequest.method).to.equal('POST');
     });
     it('Returns valid URL', function () {
-      expect(serverRequest.url).to.equal('https://capi-795bd5e8-bd5c-4013-9d02-87300bb59c7f.stg.connatix.com/rtb/hba');
+      expect(serverRequest.url).to.equal('https://capi-9b88e0cc-f82f-4bcf-85a7-c156703b1a96.stg.connatix.com/rtb/hba');
     });
     it('Returns request payload', function () {
       expect(serverRequest.data).to.not.empty;

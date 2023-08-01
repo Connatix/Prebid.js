@@ -15,7 +15,7 @@ import {
 } from '../src/mediaTypes.js';
 
 const BIDDER_CODE = 'connatix';
-const AD_URL = 'https://capi-795bd5e8-bd5c-4013-9d02-87300bb59c7f.stg.connatix.com/rtb/hba';
+const AD_URL = 'https://capi-9b88e0cc-f82f-4bcf-85a7-c156703b1a96.stg.connatix.com/rtb/hba';
 const DEFAULT_MAX_TTL = '3600';
 const DEFAULT_CURRENCY = 'USD';
 
