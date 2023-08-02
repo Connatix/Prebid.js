@@ -26,18 +26,7 @@ export function wrapAd(lineItems, requestId, playerId, customerId) {
     }
   };
   var scriptSrc = `//cd.connatix.com/connatix.player.js?cid=${customerId}`;
-  var ad = `<!DOCTYPE html>
-      <html lang="en">
-      <head>
-          <meta charset="UTF-8">
-          <title></title>
-          <script>!function(n){if(!window.cnx){window.cnx={},window.cnx.cmd=[];var t=n.createElement('iframe');t.src='javascript:false'; t.display='none',t.onload=function(){var n=t.contentWindow.document,c=n.createElement('script');c.src="${scriptSrc}",c.setAttribute('async','1'),c.setAttribute('type','text/javascript'),n.body.appendChild(c)},n.head.appendChild(t)}}(document);</script>
-          <style>html, body {width: 100%; height: 100%; margin: 0;}</style>
-      </head>
-      <body>
-        <script id="${requestId}">(new Image()).src = 'https://capi.connatix.com/tr/si?token=${playerId}&cid=${customerId}';  cnx.cmd.push(function() {    cnx({      playerId: "${playerId}", settings: ${JSON.stringify(settings)} }).render("${requestId}");  });</script>
-      </body>
-    </html>`;
+  var ad = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><script>!function(n){if(!window.cnx){window.cnx={},window.cnx.cmd=[];var t=n.createElement('iframe');t.src='javascript:false'; t.display='none',t.onload=function(){var n=t.contentWindow.document,c=n.createElement('script');c.src="${scriptSrc}",c.setAttribute('async','1'),c.setAttribute('type','text/javascript'),n.body.appendChild(c)},n.head.appendChild(t)}}(document);</script><style>html, body {width: 100%; height: 100%; margin: 0;}</style></head><body><script id="${requestId}">(new Image()).src = 'https://capi.connatix.com/tr/si?token=${playerId}&cid=${customerId}';  cnx.cmd.push(function() {    cnx({      playerId: "${playerId}", settings: ${JSON.stringify(settings)} }).render("${requestId}");  });</script></body></html>`;
 
   // Create an iframe element
   var iframe = document.createElement('iframe');
