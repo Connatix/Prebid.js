@@ -59,5 +59,6 @@
   "sharedIdSystem",
   "uid2IdSystem",
   "rtdModule",
-  "permutiveRtdProvider"
+  "permutiveRtdProvider",
+  "pubProvidedIdSystem"
 ]
