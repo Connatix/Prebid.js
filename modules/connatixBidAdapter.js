@@ -10,7 +10,8 @@ import {
   formatQS,
   getWindowSelf,
   getWindowTop,
-  isNumber
+  isNumber,
+  isStr
 } from '../src/utils.js';
 
 import {
@@ -207,12 +208,19 @@ export const spec = {
 
       let detectedViewabilityPercentage = null;
 
-      const element = document.getElementById(adUnitCode);
+      const viewabilityContainerIdentifier = params.viewabilityContainerIdentifier;
+      let element = document.getElementById(adUnitCode);
+
       // Get the sizes from the mediaTypes object if it exists, otherwise use the sizes array from the bid object
       // ??? Should we get also from w, h or make them required in our docs to improve the viewailbity detection support ???
       let bidParamSizes = bid.mediaTypes && bid.mediaTypes.banner && bid.mediaTypes.banner.sizes ? bid.mediaTypes.banner.sizes : bid.sizes;
       bidParamSizes = typeof bidParamSizes === 'undefined' && bid.mediaType && bid.mediaType.video && bid.mediaType.video.playerSize ? bid.mediaType.video.playerSize : bidParamSizes;
       bidParamSizes = typeof bidParamSizes === 'undefined' && bid.mediaType && bid.mediaType.video && isNumber(bid.mediaType.video.w) && isNumber(bid.mediaType.h) ? [bid.mediaType.video.w, bid.mediaType.video.h] : bidParamSizes;
+
+      if (isStr(viewabilityContainerIdentifier)) {
+        element = document.querySelector(viewabilityContainerIdentifier);
+        bidParamSizes = [element.width, element.height];
+      }
 
       let minSize = _getMinSize(bidParamSizes ?? [])
       if (_isViewabilityMeasurable(element)) {
