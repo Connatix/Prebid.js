@@ -44,6 +44,90 @@ describe('connatixBidAdapter', function () {
     bid.mediaTypes = mediaTypes;
   }
 
+  describe('_getMinSize', () => {
+    test('should return the smallest size based on area', () => {
+      const sizes = [
+        { w: 300, h: 250 },
+        { w: 728, h: 90 },
+        { w: 160, h: 600 }
+      ];
+      const result = _getMinSize(sizes);
+      expect(result).toEqual({ w: 300, h: 250 }); // smallest area is 300 * 250
+    });
+
+    test('should handle an array with one size', () => {
+      const sizes = [{ w: 300, h: 250 }];
+      const result = _getMinSize(sizes);
+      expect(result).toEqual({ w: 300, h: 250 });
+    });
+
+    test('should handle empty array', () => {
+      const sizes = [];
+      const result = _getMinSize(sizes);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('_isViewabilityMeasurable', () => {
+    test('should return false if element is null', () => {
+      const result = _isViewabilityMeasurable(null);
+      expect(result).toBe(false);
+    });
+
+    test('should return true if element is not null and not in an iframe', () => {
+      const mockElement = {}; // Mock element
+      const result = _isViewabilityMeasurable(mockElement);
+      expect(result).toBe(true);
+    });
+
+    test('should return false if inside an iframe', () => {
+      // Mock the _isIframe function to return true
+      jest.spyOn(global, '_isIframe').mockReturnValue(true);
+
+      const mockElement = {}; // Mock element
+      const result = _isViewabilityMeasurable(mockElement);
+      expect(result).toBe(false);
+
+      // Restore the original implementation
+      global._isIframe.mockRestore();
+    });
+  });
+
+  describe('_isIframe', () => {
+    test('should return true if in an iframe', () => {
+      jest.spyOn(global, 'getWindowSelf').mockReturnValue({ location: 'http://test.com' });
+      jest.spyOn(global, 'getWindowTop').mockReturnValue({ location: 'http://other.com' });
+
+      const result = _isIframe();
+      expect(result).toBe(true);
+
+      global.getWindowSelf.mockRestore();
+      global.getWindowTop.mockRestore();
+    });
+
+    test('should return false if not in an iframe', () => {
+      jest.spyOn(global, 'getWindowSelf').mockReturnValue({ location: 'http://test.com' });
+      jest.spyOn(global, 'getWindowTop').mockReturnValue({ location: 'http://test.com' });
+
+      const result = _isIframe();
+      expect(result).toBe(false);
+
+      global.getWindowSelf.mockRestore();
+      global.getWindowTop.mockRestore();
+    });
+
+    test('should return true if an error is thrown', () => {
+      jest.spyOn(global, 'getWindowSelf').mockImplementation(() => {
+        throw new Error('Security error');
+      });
+
+      const result = _isIframe();
+      expect(result).toBe(true);
+
+      global.getWindowSelf.mockRestore();
+    });
+  });
+
   describe('isBidRequestValid', function () {
     this.beforeEach(function () {
       bid = mockBidRequest();
