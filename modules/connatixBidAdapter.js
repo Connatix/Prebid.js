@@ -7,7 +7,11 @@ import {
   isFn,
   logError,
   isArray,
-  formatQS
+  formatQS,
+  getWindowSelf,
+  getWindowTop,
+  isNumber,
+  isStr
 } from '../src/utils.js';
 
 import {
@@ -25,7 +29,7 @@ const DEFAULT_CURRENCY = 'USD';
  * Get the bid floor value from the bid object, either using the getFloor function or by accessing the 'params.bidfloor' property.
  * If the bid floor cannot be determined, return 0 as a fallback value.
  */
-export function getBidFloor(bid) {
+function getBidFloor(bid) {
   if (!isFn(bid.getFloor)) {
     return deepAccess(bid, 'params.bidfloor', 0);
   }
@@ -43,7 +47,7 @@ export function getBidFloor(bid) {
   }
 }
 
-export function validateBanner(mediaTypes) {
+function validateBanner(mediaTypes) {
   if (!mediaTypes[BANNER]) {
     return true;
   }
@@ -52,13 +56,100 @@ export function validateBanner(mediaTypes) {
   return (Boolean(banner.sizes) && isArray(mediaTypes[BANNER].sizes) && mediaTypes[BANNER].sizes.length > 0);
 }
 
-export function validateVideo(mediaTypes) {
+function validateVideo(mediaTypes) {
   const video = mediaTypes[VIDEO];
   if (!video) {
     return true;
   }
 
   return video.context !== ADPOD;
+}
+
+function _getMinSize(bidParamSizes) {
+  return bidParamSizes.reduce((min, size) => size.h * size.w < min.h * min.w ? size : min)
+}
+
+function _isViewabilityMeasurable(element) {
+  return !_isIframe() && element !== null;
+}
+
+function _isIframe() {
+  try {
+    return getWindowSelf() !== getWindowTop();
+  } catch (e) {
+    return true;
+  }
+}
+
+function _getViewability(element, topWin, { w, h } = {}) {
+  return topWin.document.visibilityState === 'visible'
+    ? _getPercentInView(element, topWin, { w, h })
+    : 0;
+}
+
+function _getPercentInView(element, topWin, { w, h } = {}) {
+  const elementBoundingBox = _getBoundingBox(element, { w, h });
+
+  const elementInViewBoundingBox = _getIntersectionOfRects([ {
+    left: 0,
+    top: 0,
+    right: topWin.innerWidth,
+    bottom: topWin.innerHeight
+  }, elementBoundingBox ]);
+
+  let elementInViewArea, elementTotalArea;
+
+  if (elementInViewBoundingBox !== null) {
+    elementInViewArea = elementInViewBoundingBox.width * elementInViewBoundingBox.height;
+    elementTotalArea = elementBoundingBox.width * elementBoundingBox.height;
+
+    return ((elementInViewArea / elementTotalArea) * 100);
+  }
+
+  return 0;
+}
+
+function _getBoundingBox(element, { w, h } = {}) {
+  let { width, height, left, top, right, bottom } = element.getBoundingClientRect();
+
+  if ((width === 0 || height === 0) && w && h) {
+    width = w;
+    height = h;
+    right = left + w;
+    bottom = top + h;
+  }
+
+  return { width, height, left, top, right, bottom };
+}
+
+function _getIntersectionOfRects(rects) {
+  const bbox = {
+    left: rects[0].left,
+    right: rects[0].right,
+    top: rects[0].top,
+    bottom: rects[0].bottom
+  };
+
+  for (let i = 1; i < rects.length; ++i) {
+    bbox.left = Math.max(bbox.left, rects[i].left);
+    bbox.right = Math.min(bbox.right, rects[i].right);
+
+    if (bbox.left >= bbox.right) {
+      return null;
+    }
+
+    bbox.top = Math.max(bbox.top, rects[i].top);
+    bbox.bottom = Math.min(bbox.bottom, rects[i].bottom);
+
+    if (bbox.top >= bbox.bottom) {
+      return null;
+    }
+  }
+
+  bbox.width = bbox.right - bbox.left;
+  bbox.height = bbox.bottom - bbox.top;
+
+  return bbox;
 }
 
 export const spec = {
@@ -82,9 +173,10 @@ export const spec = {
     const hasMediaTypes = Boolean(mediaTypes) && (Boolean(mediaTypes[BANNER]) || Boolean(mediaTypes[VIDEO]));
     const isValidBanner = validateBanner(mediaTypes);
     const isValidVideo = validateVideo(mediaTypes);
+    const isValidViewability = typeof params.viewabilityPercentage === 'undefined' || (isNumber(params.viewabilityPercentage) && params.viewabilityPercentage >= 0 && params.viewabilityPercentage <= 1);
     const hasRequiredBidParams = Boolean(params.placementId);
 
-    const isValid = isValidBidder && hasBidId && hasMediaTypes && isValidBanner && isValidVideo && hasRequiredBidParams;
+    const isValid = isValidBidder && hasBidId && hasMediaTypes && isValidViewability && isValidBanner && isValidVideo && hasRequiredBidParams;
     if (!isValid) {
       logError(
         `Invalid bid request: 
@@ -111,11 +203,40 @@ export const spec = {
         mediaTypes,
         params,
         sizes,
+        adUnitCode
       } = bid;
+
+      let detectedViewabilityPercentage = null;
+
+      const viewabilityContainerIdentifier = params.viewabilityContainerIdentifier;
+      let element = document.getElementById(adUnitCode);
+
+      // Get the sizes from the mediaTypes object if it exists, otherwise use the sizes array from the bid object
+      // ??? Should we get also from w, h or make them required in our docs to improve the viewailbity detection support ???
+      let bidParamSizes = bid.mediaTypes && bid.mediaTypes.banner && bid.mediaTypes.banner.sizes ? bid.mediaTypes.banner.sizes : bid.sizes;
+      bidParamSizes = typeof bidParamSizes === 'undefined' && bid.mediaType && bid.mediaType.video && bid.mediaType.video.playerSize ? bid.mediaType.video.playerSize : bidParamSizes;
+      bidParamSizes = typeof bidParamSizes === 'undefined' && bid.mediaType && bid.mediaType.video && isNumber(bid.mediaType.video.w) && isNumber(bid.mediaType.h) ? [bid.mediaType.video.w, bid.mediaType.video.h] : bidParamSizes;
+
+      if (isStr(viewabilityContainerIdentifier)) {
+        element = document.querySelector(viewabilityContainerIdentifier);
+        bidParamSizes = [element.width, element.height];
+      }
+
+      let minSize = _getMinSize(bidParamSizes ?? [])
+      if (_isViewabilityMeasurable(element)) {
+        const minSizeObj = {
+          w: minSize[0],
+          h: minSize[1]
+        }
+        detectedViewabilityPercentage = Math.round(_getViewability(element, getWindowTop(), minSizeObj))
+      }
+
       return {
         bidId,
         mediaTypes,
         sizes,
+        detectedViewabilityPercentage,
+        declaredViewabilityPercentage: bid.params.viewabilityPercentage ?? null,
         placementId: params.placementId,
         floor: getBidFloor(bid),
       };
