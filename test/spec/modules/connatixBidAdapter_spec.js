@@ -128,6 +128,198 @@ describe('connatixBidAdapter', function () {
     });
   });
 
+  describe('_getViewability', () => {
+    test('should return 0 if the document is not visible', () => {
+      const mockTopWin = { document: { visibilityState: 'hidden' } };
+      const mockElement = {};
+
+      const result = _getViewability(mockElement, mockTopWin, { w: 300, h: 250 });
+      expect(result).toBe(0);
+    });
+
+    test('should calculate viewability when the document is visible', () => {
+      const mockTopWin = {
+        document: { visibilityState: 'visible' },
+        innerWidth: 1000,
+        innerHeight: 800
+      };
+      const mockElement = {
+        getBoundingClientRect: () => ({
+          width: 300,
+          height: 250,
+          left: 100,
+          top: 100,
+          right: 400,
+          bottom: 350
+        })
+      };
+
+      jest.spyOn(global, '_getPercentInView').mockReturnValue(50);
+
+      const result = _getViewability(mockElement, mockTopWin, { w: 300, h: 250 });
+      expect(result).toBe(50);
+
+      global._getPercentInView.mockRestore();
+    });
+  });
+
+  describe('_getPercentInView', () => {
+    test('should return 0 if element is not in view', () => {
+      const mockTopWin = {
+        innerWidth: 1000,
+        innerHeight: 800
+      };
+      const mockElement = {
+        getBoundingClientRect: () => ({
+          width: 300,
+          height: 250,
+          left: 1200, // Out of viewport
+          top: 100,
+          right: 1500,
+          bottom: 350
+        })
+      };
+
+      const result = _getPercentInView(mockElement, mockTopWin, { w: 300, h: 250 });
+      expect(result).toBe(0);
+    });
+
+    test('should calculate percent in view correctly', () => {
+      const mockTopWin = {
+        innerWidth: 1000,
+        innerHeight: 800
+      };
+      const mockElement = {
+        getBoundingClientRect: () => ({
+          width: 300,
+          height: 250,
+          left: 100,
+          top: 100,
+          right: 400,
+          bottom: 350
+        })
+      };
+
+      const result = _getPercentInView(mockElement, mockTopWin, { w: 300, h: 250 });
+      expect(result).toBeCloseTo(100); // Element fully in view
+    });
+
+    test('should handle partial visibility', () => {
+      const mockTopWin = {
+        innerWidth: 500,
+        innerHeight: 800
+      };
+      const mockElement = {
+        getBoundingClientRect: () => ({
+          width: 600,
+          height: 250,
+          left: 0,
+          top: 100,
+          right: 600,
+          bottom: 350
+        })
+      };
+
+      const result = _getPercentInView(mockElement, mockTopWin, { w: 600, h: 250 });
+      expect(result).toBeCloseTo(83.33, 2); // Element partially in view
+    });
+  });
+
+  describe('_getBoundingBox', () => {
+    test('should return bounding box using getBoundingClientRect', () => {
+      const mockElement = {
+        getBoundingClientRect: () => ({
+          width: 300,
+          height: 250,
+          left: 100,
+          top: 100,
+          right: 400,
+          bottom: 350
+        })
+      };
+
+      const result = _getBoundingBox(mockElement);
+      expect(result).toEqual({
+        width: 300,
+        height: 250,
+        left: 100,
+        top: 100,
+        right: 400,
+        bottom: 350
+      });
+    });
+
+    test('should use provided dimensions if element size is zero', () => {
+      const mockElement = {
+        getBoundingClientRect: () => ({
+          width: 0,
+          height: 0,
+          left: 100,
+          top: 100,
+          right: 100,
+          bottom: 100
+        })
+      };
+
+      const result = _getBoundingBox(mockElement, { w: 300, h: 250 });
+      expect(result).toEqual({
+        width: 300,
+        height: 250,
+        left: 100,
+        top: 100,
+        right: 400,
+        bottom: 350
+      });
+    });
+  });
+
+  describe('_getIntersectionOfRects', () => {
+    test('should return intersection of overlapping rectangles', () => {
+      const rects = [
+        { left: 0, top: 0, right: 100, bottom: 100 },
+        { left: 50, top: 50, right: 150, bottom: 150 }
+      ];
+
+      const result = _getIntersectionOfRects(rects);
+      expect(result).toEqual({
+        left: 50,
+        top: 50,
+        right: 100,
+        bottom: 100,
+        width: 50,
+        height: 50
+      });
+    });
+
+    test('should return null if rectangles do not overlap', () => {
+      const rects = [
+        { left: 0, top: 0, right: 100, bottom: 100 },
+        { left: 150, top: 150, right: 200, bottom: 200 }
+      ];
+
+      const result = _getIntersectionOfRects(rects);
+      expect(result).toBeNull();
+    });
+
+    test('should handle multiple rectangles', () => {
+      const rects = [
+        { left: 0, top: 0, right: 100, bottom: 100 },
+        { left: 25, top: 25, right: 75, bottom: 75 },
+        { left: 50, top: 50, right: 150, bottom: 150 }
+      ];
+
+      const result = _getIntersectionOfRects(rects);
+      expect(result).toEqual({
+        left: 50,
+        top: 50,
+        right: 75,
+        bottom: 75,
+        width: 25,
+        height: 25
+      });
+    });
+  });
+
   describe('isBidRequestValid', function () {
     this.beforeEach(function () {
       bid = mockBidRequest();
