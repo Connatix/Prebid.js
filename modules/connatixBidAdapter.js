@@ -4,6 +4,7 @@ import {
 
 import {
   deepAccess,
+  deepSetValue,
   isFn,
   logError,
   isArray,
@@ -38,6 +39,16 @@ export function getBidFloor(bid) {
   } catch (err) {
     logError(err);
     return 0;
+  }
+}
+
+/**
+ * Get ids from Prebid User ID Modules and add them to the payload
+ */
+function _handleEids(payload, validBidRequests) {
+  let bidUserIdAsEids = deepAccess(validBidRequests, '0.userIdAsEids');
+  if (isArray(bidUserIdAsEids) && bidUserIdAsEids.length > 0) {
+    deepSetValue(payload, 'identityProvider', bidUserIdAsEids);
   }
 }
 
@@ -102,6 +113,8 @@ export const spec = {
       refererInfo: bidderRequest.refererInfo,
       bidRequests,
     };
+
+    _handleEids(requestPayload, validBidRequests);
 
     return {
       method: 'POST',
