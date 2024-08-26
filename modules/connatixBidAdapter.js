@@ -134,7 +134,7 @@ function _handleEvents() {
     }, { bestBidPrice: 0, bestBidBidder: '' });
 
     const connatixBid = bidsReceived.find(bid => bid.bidderCode === BIDDER_CODE);
-    const connatixBidPrice = connatixBid.cpm;
+    const connatixBidPrice = connatixBid?.cpm ?? 0;
 
     if (bestBidPrice > connatixBidPrice) {
       ajax(`${EVENTS_BASE_URL}/ae`, null, JSON.stringify({bestBidBidder, bestBidPrice, connatixBidPrice}), {
