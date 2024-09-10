@@ -21,11 +21,18 @@ import {
   BANNER,
   VIDEO,
 } from '../src/mediaTypes.js';
+import { ajax } from '../src/ajax.js';
+
+import * as utils from '../src/utils.js';
+import { EVENTS } from '../src/constants.js';
 
 const BIDDER_CODE = 'connatix';
+
 const AD_URL = 'https://capi.connatix.com/rtb/hba';
 const DEFAULT_MAX_TTL = '3600';
 const DEFAULT_CURRENCY = 'USD';
+
+const EVENTS_BASE_URL = 'https://capi.connatix.com/event';
 
 /*
  * Get the bid floor value from the bid object, either using the getFloor function or by accessing the 'params.bidfloor' property.
@@ -147,6 +154,86 @@ function _handleEids(payload, validBidRequests) {
   }
 }
 
+/**
+ * Handle prebid events to send to Connatix
+ */
+function _handleEvents() {
+  const prebidJs = window.pbjs;
+
+  if (!prebidJs) {
+    ajax(`${EVENTS_BASE_URL}/nt`, null, {}, {
+      method: 'POST',
+      withCredentials: false
+    });
+    return;
+  }
+
+  prebidJs.onEvent(EVENTS.AUCTION_TIMEOUT, (timeoutData) => {
+    // eslint-disable-next-line no-console
+    console.log('Connatix auction timeout', timeoutData);
+
+    const isConnatixTimeout = timeoutData.bidderRequests.some(bidderRequest => bidderRequest.bidderCode === BIDDER_CODE);
+
+    // Log only it is a timeout for Connatix
+    // Otherwise it is not relevant for us
+    if (!isConnatixTimeout) {
+      return;
+    }
+
+    const timeout = timeoutData.timeout;
+    ajax(`${EVENTS_BASE_URL}/to`, null, JSON.stringify({timeout}), {
+      method: 'POST',
+      withCredentials: false
+    });
+  });
+
+  prebidJs.onEvent(EVENTS.AUCTION_END, (auctionEndData) => {
+    // eslint-disable-next-line no-console
+    console.log('Connatix auction end', auctionEndData);
+
+    const bidsReceived = auctionEndData.bidsReceived;
+    const hasConnatixBid = bidsReceived.some(bid => bid.bidderCode === BIDDER_CODE);
+
+    // Log only if connatix compete in the auction and have a bid.
+    // Otherwise it is not relevant for us
+    if (!hasConnatixBid) {
+      return;
+    }
+
+    const { bestBidPrice, bestBidBidder } = bidsReceived.reduce((acc, bid) => {
+      if (bid.cpm > acc.bestBidPrice) {
+        acc.bestBidPrice = bid.cpm;
+        acc.bestBidBidder = bid.bidderCode;
+      }
+      return acc;
+    }, { bestBidPrice: 0, bestBidBidder: '' });
+
+    const connatixBid = bidsReceived.find(bid => bid.bidderCode === BIDDER_CODE);
+    const connatixBidPrice = connatixBid?.cpm ?? 0;
+
+    if (bestBidPrice > connatixBidPrice) {
+      ajax(`${EVENTS_BASE_URL}/ae`, null, JSON.stringify({bestBidBidder, bestBidPrice, connatixBidPrice}), {
+        method: 'POST',
+        withCredentials: false
+      });
+    }
+  });
+}
+
+/**
+ * Inserts an image pixel with the specified `url` for cookie sync
+ * @param {string} url URL string of the image pixel to load
+ * @param  {function} [done] an optional exit callback, used when this usersync pixel is added during an async process
+ * @param  {Number} [timeout] an optional timeout in milliseconds for the image to load before calling `done`
+ */
+export function triggerPixel(url, done, timeout) {
+  const img = new Image();
+  if (done && utils.internal.isFn(done)) {
+    utils.waitForElementToLoad(img, timeout).then(done);
+  }
+  img.src = url;
+}
+
 export const spec = {
   code: BIDDER_CODE,
   gvlid: 143,
@@ -189,6 +276,8 @@ export const spec = {
    * Return an object containing the request method, url, and the constructed payload.
    */
   buildRequests: (validBidRequests = [], bidderRequest = {}) => {
+    _handleEvents()
+
     const bidRequests = validBidRequests.map(bid => {
       const {
         bidId,
