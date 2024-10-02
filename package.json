@@ -1,10 +1,6 @@
 {
   "name": "prebid.js",
-<<<<<<< HEAD
-  "version": "9.4.1",
-=======
   "version": "9.16.0-pre",
->>>>>>> 0b882c2a7d39dfffc31920ec2ead2b9a2307bb99
   "description": "Header Bidding Management Library",
   "main": "src/prebid.public.js",
   "exports": {
