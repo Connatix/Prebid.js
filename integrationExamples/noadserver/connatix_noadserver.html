@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>Prebid.js Integration Example</title>
+    <!-- <script
+            async
+            src="https://assets.connatix.com/Elements/f0a86606-5324-4622-ab8e-ec0a1841f0e1/standalone_bundle_v2_video.js"
+        ></script> -->
+    <script async src="../../build/dev/prebid.js"></script>
+    <script>
+        !(function (n) {
+            if (!window.cnx) {
+                (window.cnx = {}), (window.cnx.cmd = []);
+                var t = n.createElement('iframe');
+                t.src = 'javascript:false';
+                (t.display = 'none'),
+                    (t.onload = function () {
+                        var n = t.contentWindow.document,
+                            c = n.createElement('script');
+                        (c.src = '//cd.connatix.com/connatix.player.js?cid=2a4cff0e-bd69-47ed-adc5-c9da040ce3aa&pid=7c4c99b2-d6f7-4319-9909-f455db757f77'),
+                            c.setAttribute('async', '1'),
+                            c.setAttribute('type', 'text/javascript'),
+                            n.body.appendChild(c);
+                    }),
+                    n.head.appendChild(t);
+            }
+        })(document);
+    </script>
+    <script>
+        var adUnits = [
+            {
+                code: '3',
+                mediaTypes: {
+                    video: {
+                        context: 'instream', // 'instream', 'outstream', or 'adpod'
+                        playerSize: [640, 480],
+                        mimes: ['video/mp4', 'video/webm'],
+                        protocols: [1, 2, 3, 4, 5, 6, 7, 8],
+                        linearity: 1,
+                        maxduration: 30,
+                        minduration: 5,
+                        playbackmethod: [1, 2]
+                    }
+                },
+                renderer: {
+                    url: 'https://cdn.adnxs.com/renderer/video/ANOutstreamVideo.js',
+                    render: function (bid) {
+                        ANOutstreamVideo.renderAd({
+                            targetId: bid.adUnitCode,
+                            adResponse: bid.adResponse
+                        });
+                    }
+                },
+                bids: [
+                    {
+                        bidder: 'connatix',
+                        params: {
+                            placementId: 'fa6f2835-91f8-48e3-9bfc-6eed092a31e8'
+                        }
+                    }
+                ]
+            }
+        ];
+        function initPrebid() {
+            var pbjs = window.pbjs || {};
+            pbjs.setConfig({
+                userSync: {
+                    filterSettings: {
+                        iframe: {
+                            bidders: '*', // '*' means all bidders
+                            filter: 'include'
+                        }
+                    },
+                    syncsPerBidder: 3,
+                    auctionDelay: 5
+                },
+                cache: {
+                    url: 'https://prebid.adnxs.com/pbc/v1/cache?uuid=1234'
+                },
+                ortb2: {
+                    site: {
+                        content: {
+                            id: "some_id",
+                            episode: "1",
+                            title: "some title",
+                            series: "some series",
+                            season: "s1",
+                            artist: "John Doe",
+                            genre: "some genre",
+                            isrc: "CC-XXX-YY-NNNNN",
+                            url: "http://foo_url.de",
+                            cat: ["IAB1-1", "IAB1-2", "IAB2-10"],
+                            context: "7",
+                            keywords: "k1,k2",
+                            live: "0"
+                        }
+                    }
+                }
+            });
+            pbjs.que = pbjs.que || [];
+            pbjs.que.push(function () {
+                pbjs.addAdUnits(adUnits);
+                pbjs.requestBids({
+                    timeout: 90000,
+                    adUnits: adUnits,
+                    bidsBackHandler: (bid, timedOut, auctionId) => {
+                        console.log( bid['3'].bids[0].vastXml);
+                        const bestBid = pbjs.getHighestCpmBids()[0];
+                        window.cnxApi.setLineItemMetadata({
+                            id: "2c3c628d-1de1-41b3-9da8-93ae54d104ca",
+                            vastXml: bestBid.vastXml,
+                        }, (info) => {
+                            console.log("set line item metadata ", info.success);
+                            console.log(info.errorReason);
+                        });
+
+                        if (Object.keys(bid).length > 0) {
+                            const bestBid = pbjs.getHighestCpmBids()[0];
+
+                            var div = document.createElement('textarea');
+
+                            div.innerHTML = bestBid.vastXml
+    
+                            div.style.width = '100%';
+                            div.style.height = '50%';
+                   
+                            document.getElementById('ad_slot').appendChild(div);
+                        }
+                    }
+                });
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <h1>Prebid.js Integration Example</h1>
+    <script>
+        // Initialize Prebid.js and request bids
+        setTimeout(() => initPrebid(), 5000);
+    </script>
+
+    <script id="2815d87a5ee74a7e8455b8357bef82df">
+        new Image().src = 'https://capi.connatix.com/tr/si?token=bdc31711-adcf-441c-a12b-5be3f96493b2&cid=2a4cff0e-bd69-47ed-adc5-c9da040ce3aa';
+        cnx.cmd.push(function () {
+            cnx({
+                playerId: 'bdc31711-adcf-441c-a12b-5be3f96493b2',
+                settings: {
+                    advertising: {
+                        lineItems: [
+                            {
+                                id: '2c3c628d-1de1-41b3-9da8-93ae54d104ca',
+                            },
+                        ]
+                    },
+                    customization: {
+                        responsive: false,
+                        fixedWidth: 640,
+                        fixedHeight: 360,
+                    },
+                    playlistId: "someId"
+
+                }
+            }).render('2815d87a5ee74a7e8455b8357bef82df', function (error, api) {
+                if (error) {
+
+                }
+                window.cnxApi = api;
+            });
+        });
+    </script>
+
+    <div id="container" style="width: 1080px; height: 566px">
+        <div id="ad_slot" style="width: 1080px; height: 566px"></div>
+    </div>
+</body>
+
+</html>
