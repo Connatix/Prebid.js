@@ -1,0 +1,16 @@
+[
+  "appnexusBidAdapter",
+  "ixBidAdapter",
+  "yahoosspBidAdapter",
+  "openxBidAdapter",
+  "pubmaticBidAdapter",
+  "rubiconBidAdapter",
+  "sonobiBidAdapter",
+  "tripleliftBidAdapter",
+  "gridBidAdapter",
+  "undertoneBidAdapter",
+  "consentManagementGpp",
+  "topicsFpdModule",
+  "gptPreAuction",
+  "dfpAdServerVideo"
+]

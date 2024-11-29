@@ -5,6 +5,8 @@ import {
 
 import { percentInView } from '../libraries/percentInView/percentInView.js';
 
+import { getStorageManager } from '../src/storageManager.js';
+
 import { config } from '../src/config.js';
 
 import { ajax } from '../src/ajax.js';
@@ -31,6 +33,10 @@ const BIDDER_CODE = 'connatix';
 const AD_URL = 'https://capi.connatix.com/rtb/hba';
 const DEFAULT_MAX_TTL = '3600';
 const DEFAULT_CURRENCY = 'USD';
+
+const CNX_IDS = 'cnx_ids';
+const CNX_ID_RETENTION_TIME_HOUR = 24 * 30; // 30 days
+export const storage = getStorageManager({ bidderCode: BIDDER_CODE });
 
 const EVENTS_URL = 'https://capi.connatix.com/tr/am';
 
@@ -182,6 +188,21 @@ function _handleEids(payload, validBidRequests) {
   }
 }
 
+function saveOnAllStorages(name, value, expirationTimeHours) {
+  const date = new Date();
+  date.setTime(date.getTime() + (expirationTimeHours * 60 * 60 * 1000));
+  const expires = `expires=${date.toUTCString()}`;
+  storage.setCookie(name, value, expires);
+  storage.setDataInLocalStorage(name, value);
+}
+
+function readFromAllStorages(name) {
+  const fromCookie = storage.getCookie(name);
+  const fromLocalStorage = storage.getDataFromLocalStorage(name);
+
+  return fromCookie || fromLocalStorage || undefined;
+}
+
 export const spec = {
   code: BIDDER_CODE,
   gvlid: 143,
@@ -208,10 +229,10 @@ export const spec = {
     if (!isValid) {
       logError(
         `Invalid bid request:
-          hasBidId: ${hasBidId}, 
-          hasMediaTypes: ${hasMediaTypes}, 
-          isValidBanner: ${isValidBanner}, 
-          isValidVideo: ${isValidVideo}, 
+          hasBidId: ${hasBidId},
+          hasMediaTypes: ${hasMediaTypes},
+          isValidBanner: ${isValidBanner},
+          isValidVideo: ${isValidVideo},
           hasRequiredBidParams: ${hasRequiredBidParams}`
       );
     }
@@ -225,6 +246,7 @@ export const spec = {
    */
   buildRequests: (validBidRequests = [], bidderRequest = {}) => {
     const bidRequests = _getBidRequests(validBidRequests);
+    const cnxIds = readFromAllStorages(CNX_IDS);
 
     const requestPayload = {
       ortb2: bidderRequest.ortb2,
@@ -232,6 +254,7 @@ export const spec = {
       uspConsent: bidderRequest.uspConsent,
       gppConsent: bidderRequest.gppConsent,
       refererInfo: bidderRequest.refererInfo,
+      userIds: cnxIds,
       bidRequests,
     };
 
@@ -307,6 +330,20 @@ export const spec = {
     if (typeof uspConsent === 'string') {
       params['us_privacy'] = encodeURIComponent(uspConsent);
     }
+
+    window.addEventListener('message', function handler(event) {
+      if (!event.data || !event.origin.includes('connatix')) {
+        return;
+      }
+      this.removeEventListener('message', handler);
+
+      event.stopImmediatePropagation();
+
+      const response = event.data;
+      if (!response.optout && response.eids) {
+        saveOnAllStorages(CNX_IDS, response.eids, CNX_ID_RETENTION_TIME_HOUR);
+      }
+    }, true)
 
     const syncUrl = serverResponses[0].body.UserSyncEndpoint;
     const queryParams = Object.keys(params).length > 0 ? formatQS(params) : '';
