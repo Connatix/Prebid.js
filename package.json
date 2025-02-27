@@ -17,7 +17,7 @@
     "test": "gulp test",
     "lint": "gulp lint",
     "build:connatix": "gulp build-bundle-prod --disable NATIVE --modules=modules.json",
-    "build:connatix:gannett": "gulp build-bundle-prod --disable NATIVE --modules=gannet-modules.json"
+    "build:connatix:fandom": "gulp build-bundle-prod --disable NATIVE --modules=fandom-modules.json"
   },
   "repository": {
     "type": "git",
