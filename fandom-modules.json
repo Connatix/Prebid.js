@@ -11,8 +11,20 @@
     "riseBidAdapter",
     "medianetBidAdapter",
     "cadentApertureMXBidAdapter",
+    "adpod",
+    "consentManagementTcf",
+    "consentManagementUsp",
     "consentManagementGpp",
-    "topicsFpdModule",
-    "gptPreAuction",
-    "dfpAdServerVideo"
+    "tcfControl",
+    "currency",
+    "priceFloors",
+    "schain",
+    "userId",
+    "identityLinkIdSystem",
+    "criteoIdSystem",
+    "sharedIdSystem",
+    "uid2IdSystem",
+    "rtdModule",
+    "permutiveRtdProvider",
+    "pubProvidedIdSystem"
 ]
