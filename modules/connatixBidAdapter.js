@@ -155,7 +155,7 @@ export const spec = {
 
     const params = {};
 
-    if (gdprConsent) {
+    if (gdprConsent && gdprConsent.gdprApplies) {
       params['gdpr'] = gdprConsent.gdprApplies ? 1 : 0;
 
       if (typeof gdprConsent.consentString === 'string') {
