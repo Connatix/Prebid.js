@@ -156,11 +156,7 @@ export const spec = {
     const params = {};
 
     if (gdprConsent) {
-      if (typeof gdprConsent.gdprApplies === 'boolean') {
-        params['gdpr'] = Number(gdprConsent.gdprApplies);
-      } else {
-        params['gdpr'] = 0;
-      }
+      params['gdpr'] = gdprConsent.gdprApplies ? 1 : 0;
 
       if (typeof gdprConsent.consentString === 'string') {
         params['gdpr_consent'] = encodeURIComponent(gdprConsent.consentString);
