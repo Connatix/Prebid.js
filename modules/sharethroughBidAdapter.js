@@ -1,24 +1,54 @@
-import { registerBidder } from '../src/adapters/bidderFactory.js';
+import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { config } from '../src/config.js';
-import { BANNER, VIDEO } from '../src/mediaTypes.js';
-import { deepAccess, generateUUID, inIframe, mergeDeep } from '../src/utils.js';
+import { ortbConverter } from '../libraries/ortbConverter/converter.js';
+import { prepareSplitImps } from '../libraries/equativUtils/equativUtils.js';
+import { registerBidder } from '../src/adapters/bidderFactory.js';
+import { deepAccess, generateUUID, inIframe, isPlainObject, logWarn, mergeDeep } from '../src/utils.js';
 
 const VERSION = '4.3.0';
 const BIDDER_CODE = 'sharethrough';
 const SUPPLY_ID = 'WYu2BXv1';
 
+const EQT_ENDPOINT = 'https://ssb.smartadserver.com/api/bid?callerId=233';
 const STR_ENDPOINT = `https://btlr.sharethrough.com/universal/v1?supply_id=${SUPPLY_ID}`;
+const IDENTIFIER_PREFIX = 'Sharethrough:';
+
+const impIdMap = {};
+let isEqtvTest = null;
+
+/**
+ * Gets value of the local variable impIdMap
+ * @returns {*} Value of impIdMap
+ */
+export function getImpIdMap() {
+  return impIdMap;
+}
+
+/**
+ * Sets value of the local variable isEqtvTest
+ * @param {*} value
+ */
+export function setIsEqtvTest(value) {
+  isEqtvTest = value;
+}
 
 // this allows stubbing of utility function that is used internally by the sharethrough adapter
 export const sharethroughInternal = {
   getProtocol,
 };
 
+export const converter = ortbConverter({
+  context: {
+    netRevenue: true,
+    ttl: 360
+  }
+});
+
 export const sharethroughAdapterSpec = {
   code: BIDDER_CODE,
-  supportedMediaTypes: [VIDEO, BANNER],
+  supportedMediaTypes: [VIDEO, BANNER, NATIVE],
   gvlid: 80,
-  isBidRequestValid: (bid) => !!bid.params.pkey && bid.bidder === BIDDER_CODE,
+  isBidRequestValid: (bid) => !!bid.params.pkey,
 
   buildRequests: (bidRequests, bidderRequest) => {
     const timeout = bidderRequest.timeout;
@@ -64,8 +94,21 @@ export const sharethroughAdapterSpec = {
       test: 0,
     };
 
+    if (bidRequests[0].params.equativNetworkId) {
+      isEqtvTest = true;
+      req.site.publisher = {
+        id: bidRequests[0].params.equativNetworkId,
+        ...req.site.publisher
+      };
+    }
+
     if (bidderRequest.ortb2?.device?.ext?.cdep) {
       req.device.ext['cdep'] = bidderRequest.ortb2.device.ext.cdep;
+    }
+
+    // if present, merge device object from ortb2 into `req.device`
+    if (bidderRequest?.ortb2?.device) {
+      mergeDeep(req.device, bidderRequest.ortb2.device);
     }
 
     req.user = nullish(firstPartyData.user, {});
@@ -82,6 +125,7 @@ export const sharethroughAdapterSpec = {
 
     if (bidderRequest.uspConsent) {
       req.regs.ext.us_privacy = bidderRequest.uspConsent;
+      req.regs.us_privacy = bidderRequest.uspConsent;
     }
 
     if (bidderRequest?.gppConsent?.gppString) {
@@ -106,6 +150,7 @@ export const sharethroughAdapterSpec = {
         const gpid = deepAccess(bidReq, 'ortb2Imp.ext.gpid') || deepAccess(bidReq, 'ortb2Imp.ext.data.pbadslot');
         if (gpid) impression.ext.gpid = gpid;
 
+        const nativeRequest = deepAccess(bidReq, 'mediaTypes.native');
         const videoRequest = deepAccess(bidReq, 'mediaTypes.video');
 
         if (bidderRequest.paapi?.enabled && bidReq.mediaTypes.banner) {
@@ -124,48 +169,68 @@ export const sharethroughAdapterSpec = {
             [w, h] = videoRequest.playerSize[0];
           }
 
-          const getVideoPlacementValue = (vidReq) => {
-            if (vidReq.plcmt) {
-              return vidReq.placement;
-            } else {
-              return vidReq.context === 'instream' ? 1 : +deepAccess(vidReq, 'placement', 4);
+          /**
+           * Applies a specified property to an impression object if it is present in the video request
+           * @param {string} prop A property to apply to the impression object
+           * @param {object} vidReq A video request object from which to extract the property
+           * @param {object} imp A video impression object to which to apply the property
+           */
+          const applyVideoProperty = (prop, vidReq, imp) => {
+            const propIsTypeArray = ['api', 'battr', 'mimes', 'playbackmethod', 'protocols'].includes(prop);
+            if (propIsTypeArray) {
+              const notAssignable = (!Array.isArray(vidReq[prop]) || vidReq[prop].length === 0) && vidReq[prop];
+              if (notAssignable) {
+                logWarn(`${IDENTIFIER_PREFIX} Invalid video request property: "${prop}" must be an array with at least 1 entry.  Value supplied: "${vidReq[prop]}".  This will not be added to the bid request.`);
+                return;
+              }
+            }
+            if (vidReq[prop]) {
+              imp.video[prop] = vidReq[prop];
             }
           };
 
           impression.video = {
             pos: nullish(videoRequest.pos, 0),
             topframe: inIframe() ? 0 : 1,
-            skip: nullish(videoRequest.skip, 0),
-            linearity: nullish(videoRequest.linearity, 1),
-            minduration: nullish(videoRequest.minduration, 5),
-            maxduration: nullish(videoRequest.maxduration, 60),
-            playbackmethod: videoRequest.playbackmethod || [2],
-            api: getVideoApi(videoRequest),
-            mimes: videoRequest.mimes || ['video/mp4'],
-            protocols: getVideoProtocols(videoRequest),
             w,
             h,
-            startdelay: nullish(videoRequest.startdelay, 0),
-            skipmin: nullish(videoRequest.skipmin, 0),
-            skipafter: nullish(videoRequest.skipafter, 0),
-            placement: getVideoPlacementValue(videoRequest),
-            plcmt: videoRequest.plcmt ? videoRequest.plcmt : null,
           };
 
-          if (videoRequest.delivery) impression.video.delivery = videoRequest.delivery;
-          if (videoRequest.companiontype) impression.video.companiontype = videoRequest.companiontype;
-          if (videoRequest.companionad) impression.video.companionad = videoRequest.companionad;
+          const propertiesToConsider = [
+            'api', 'battr', 'companiontype', 'delivery', 'linearity', 'maxduration', 'mimes', 'minduration', 'placement', 'playbackmethod', 'plcmt', 'protocols', 'skip', 'skipafter', 'skipmin', 'startdelay'
+          ];
+
+          if (!isEqtvTest) {
+            propertiesToConsider.push('companionad');
+          }
+
+          propertiesToConsider.forEach(propertyToConsider => {
+            applyVideoProperty(propertyToConsider, videoRequest, impression);
+          });
+        } else if (isEqtvTest && nativeRequest) {
+          const nativeImp = converter.toORTB({
+            bidRequests: [bidReq],
+            bidderRequest
+          });
+
+          impression.native = {
+            ...nativeImp.imp[0].native
+          };
         } else {
           impression.banner = {
             pos: deepAccess(bidReq, 'mediaTypes.banner.pos', 0),
             topframe: inIframe() ? 0 : 1,
             format: bidReq.sizes.map((size) => ({ w: +size[0], h: +size[1] })),
           };
+          const battr = deepAccess(bidReq, 'mediaTypes.banner.battr', null) || deepAccess(bidReq, 'ortb2Imp.banner.battr');
+          if (battr) impression.banner.battr = battr;
         }
+
+        const tagid = isEqtvTest ? bidReq.adUnitCode : String(bidReq.params.pkey);
 
         return {
           id: bidReq.bidId,
-          tagid: String(bidReq.params.pkey),
+          tagid,
           secure: secure ? 1 : 0,
           bidfloor: getBidRequestFloor(bidReq),
           ...impression,
@@ -173,13 +238,20 @@ export const sharethroughAdapterSpec = {
       })
       .filter((imp) => !!imp);
 
+    let splitImps = []
+    if (isEqtvTest) {
+      const bid = bidRequests[0];
+      const currency = config.getConfig('currency.adServerCurrency') || 'USD';
+      splitImps = prepareSplitImps(imps, bid, currency, impIdMap, 'stx');
+    }
+
     return imps.map((impression) => {
       return {
         method: 'POST',
-        url: STR_ENDPOINT,
+        url: isEqtvTest ? EQT_ENDPOINT : STR_ENDPOINT,
         data: {
           ...req,
-          imp: [impression],
+          imp: isEqtvTest ? splitImps : [impression],
         },
       };
     });
@@ -198,19 +270,21 @@ export const sharethroughAdapterSpec = {
 
     const fledgeAuctionEnabled = body.ext?.auctionConfigs;
 
+    const imp = req.data.imp[0];
+
     const bidsFromExchange = body.seatbid[0].bid.map((bid) => {
       // Spec: https://docs.prebid.org/dev-docs/bidder-adaptor.html#interpreting-the-response
       const response = {
-        requestId: bid.impid,
+        requestId: isEqtvTest ? impIdMap[bid.impid] : bid.impid,
         width: +bid.w,
         height: +bid.h,
         cpm: +bid.price,
         creativeId: bid.crid,
         dealId: bid.dealid || null,
-        mediaType: req.data.imp[0].video ? VIDEO : BANNER,
+        mediaType: imp.video ? VIDEO : imp.native ? NATIVE : BANNER,
         currency: body.cur || 'USD',
         netRevenue: true,
-        ttl: 360,
+        ttl: typeof bid.exp === 'number' && bid.exp > 0 ? bid.exp : 360,
         ad: bid.adm,
         nurl: bid.nurl,
         meta: {
@@ -234,12 +308,16 @@ export const sharethroughAdapterSpec = {
       if (response.mediaType === VIDEO) {
         response.ttl = 3600;
         response.vastXml = bid.adm;
+      } else if (response.mediaType === NATIVE) {
+        response.native = {
+          ortb: JSON.parse(bid.adm)
+        };
       }
 
       return response;
     });
 
-    if (fledgeAuctionEnabled) {
+    if (fledgeAuctionEnabled && !isEqtvTest) {
       return {
         bids: bidsFromExchange,
         paapi: body.ext?.auctionConfigs || {},
@@ -257,32 +335,14 @@ export const sharethroughAdapterSpec = {
   },
 
   // Empty implementation for prebid core to be able to find it
-  onTimeout: (data) => {},
+  onTimeout: (data) => { },
 
   // Empty implementation for prebid core to be able to find it
-  onBidWon: (bid) => {},
+  onBidWon: (bid) => { },
 
   // Empty implementation for prebid core to be able to find it
-  onSetTargeting: (bid) => {},
+  onSetTargeting: (bid) => { },
 };
-
-function getVideoApi({ api }) {
-  let defaultValue = [2];
-  if (api && Array.isArray(api) && api.length > 0) {
-    return api;
-  } else {
-    return defaultValue;
-  }
-}
-
-function getVideoProtocols({ protocols }) {
-  let defaultValue = [2, 3, 5, 6, 7, 8];
-  if (protocols && Array.isArray(protocols) && protocols.length > 0) {
-    return protocols;
-  } else {
-    return defaultValue;
-  }
-}
 
 function getBidRequestFloor(bid) {
   let floor = null;
@@ -292,11 +352,11 @@ function getBidRequestFloor(bid) {
       mediaType: bid.mediaTypes && bid.mediaTypes.video ? 'video' : 'banner',
       size: bid.sizes.map((size) => ({ w: size[0], h: size[1] })),
     });
-    if (typeof floorInfo === 'object' && floorInfo.currency === 'USD' && !isNaN(parseFloat(floorInfo.floor))) {
+    if (isPlainObject(floorInfo) && floorInfo.currency === 'USD' && !isNaN(parseFloat(floorInfo.floor))) {
       floor = parseFloat(floorInfo.floor);
     }
   }
-  return floor !== null ? floor : bid.params.floor;
+  return floor !== null ? floor : 0;
 }
 
 function getProtocol() {

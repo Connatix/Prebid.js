@@ -9,9 +9,10 @@ import {
 
 describe('cross-domain creative', () => {
   const ORIGIN = 'https://example.com';
-  let win, top, renderAd, messages, mkIframe;
+  let win, top, renderAd, messages, mkIframe, consoleErrorStub;
 
   beforeEach(() => {
+    consoleErrorStub = sinon.stub(console, 'error');
     messages = [];
     mkIframe = sinon.stub();
     top = {
@@ -46,6 +47,10 @@ describe('cross-domain creative', () => {
     renderAd = (...args) => renderer(win)(...args);
   })
 
+  afterEach(() => {
+    consoleErrorStub.restore();
+  })
+
   function waitFor(predicate, timeout = 1000) {
     let timedOut = false;
     return new Promise((resolve, reject) => {
@@ -72,12 +77,6 @@ describe('cross-domain creative', () => {
     expect(messages[0].targetOrigin).to.eql('https://domain.com:123')
   });
 
-  it('posts to first parent if no __pb_locator__ can be found', () => {
-    delete win.parent.frames['__pb_locator__'];
-    renderAd({pubUrl: 'https://www.example.com'});
-    expect(messages.length).to.eql(1);
-  })
-
   describe('when there are multiple ancestors', () => {
     let target;
     beforeEach(() => {
@@ -88,16 +87,39 @@ describe('cross-domain creative', () => {
         parent: {
           ...target,
           parent: {
+            top,
             frames: {'__pb_locator__': {}},
-            top
+            parent: {
+              top,
+              frames: {}
+            },
           }
         }
       }
     })
-    it('posts message to the first ancestor with __pb_locator__ child', () => {
+    Object.entries({
+      'throws': () => { throw new DOMException() },
+      'does not throw': () => ({})
+    }).forEach(([t, getFrames]) => {
+      describe(`when an ancestor ${t}`, () => {
+        beforeEach(() => {
+          Object.defineProperty(win.parent.parent.parent.parent, 'frames', {get: getFrames})
+        })
+        it('posts message to the first ancestor with __pb_locator__ child', () => {
+          renderAd({pubUrl: 'https://www.example.com'});
+          expect(messages.length).to.eql(1);
+        });
+      })
+    })
+    it('posts to first restricted parent, if __pb_locator__ cannot be found', () => {
+      Object.defineProperty(win.parent.parent.parent, 'frames', {
+        get() {
+          throw new DOMException();
+        }
+      });
       renderAd({pubUrl: 'https://www.example.com'});
       expect(messages.length).to.eql(1);
-    });
+    })
   })
 
   it('generates request message with adId and clickUrl', () => {

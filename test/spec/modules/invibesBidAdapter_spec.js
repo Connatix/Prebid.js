@@ -198,7 +198,7 @@ describe('invibesBidAdapter:', function () {
     };
     document.cookie = '';
     this.cStub1 = sinon.stub(console, 'info');
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
   });
 
   afterEach(function () {
@@ -1510,6 +1510,29 @@ describe('invibesBidAdapter:', function () {
 
       let response = spec.getUserSyncs({iframeEnabled: false});
       expect(response).to.equal(undefined);
+    });
+
+    it('uses uspConsent when no gdprConsent', function () {
+      let bidderRequest = {
+        uspConsent: '1YNY',
+        refererInfo: {
+          page: 'https://randomWeb.com?someFakePara=fakeValue&secondParam=secondValue'
+        }
+      };
+
+      let request = spec.buildRequests(bidRequests, bidderRequest);
+      expect(top.window.invibes.optIn).to.equal(2);
+      expect(top.window.invibes.GdprModuleInstalled).to.be.false;
+      expect(top.window.invibes.UspModuleInstalled).to.be.true;
+      var index;
+      for (index = 0; index < top.window.invibes.purposes.length; ++index) {
+        expect(top.window.invibes.purposes[index]).to.be.true;
+      }
+      for (index = 0; index < top.window.invibes.legitimateInterests.length; ++index) {
+        expect(top.window.invibes.legitimateInterests[index]).to.be.true;
+      }
+      expect(request.data.tc).to.not.exist;
+      expect(request.data.uspc).to.equal(bidderRequest.uspConsent);
     });
   });
 });

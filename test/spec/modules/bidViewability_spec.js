@@ -19,6 +19,10 @@ const GPT_SLOT = {
   }
 };
 
+const EVENT_OBJ = {
+  slot: GPT_SLOT
+}
+
 const PBJS_WINNING_BID = {
   'adUnitCode': '/harshad/Jan/2021/',
   'bidderCode': 'pubmatic',
@@ -71,7 +75,7 @@ describe('#bidViewability', function() {
     let winningBidsArray;
     let sandbox
     beforeEach(function() {
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.createSandbox();
       // mocking winningBidsArray
       winningBidsArray = [];
       sandbox.stub(prebidGlobal, 'getGlobal').returns({
@@ -132,7 +136,7 @@ describe('#bidViewability', function() {
     let triggerPixelSpy;
 
     beforeEach(function() {
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.createSandbox();
       triggerPixelSpy = sandbox.spy(utils, ['triggerPixel']);
     });
 
@@ -245,7 +249,7 @@ describe('#bidViewability', function() {
     let logWinningBidNotFoundSpy;
     let callBidViewableBidderSpy;
     let winningBidsArray;
-    let callBidBillableBidderSpy;
+    let triggerBillingSpy;
     let adUnits = [
       {
         'code': 'abc123',
@@ -258,11 +262,11 @@ describe('#bidViewability', function() {
     ];
 
     beforeEach(function() {
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.createSandbox();
       triggerPixelSpy = sandbox.spy(utils, ['triggerPixel']);
       eventsEmitSpy = sandbox.spy(events, ['emit']);
       callBidViewableBidderSpy = sandbox.spy(adapterManager, ['callBidViewableBidder']);
-      callBidBillableBidderSpy = sandbox.spy(adapterManager, ['callBidBillableBidder']);
+      triggerBillingSpy = sandbox.spy(adapterManager, ['triggerBilling']);
       // mocking winningBidsArray
       winningBidsArray = [];
       sandbox.stub(prebidGlobal, 'getGlobal').returns({
@@ -282,7 +286,7 @@ describe('#bidViewability', function() {
         firePixels: true
       };
       winningBidsArray.push(PBJS_WINNING_BID);
-      bidViewability.impressionViewableHandler(moduleConfig, GPT_SLOT, null);
+      bidViewability.impressionViewableHandler(moduleConfig, EVENT_OBJ);
       // fire pixels should be called
       PBJS_WINNING_BID.vurls.forEach((url, i) => {
         let call = triggerPixelSpy.getCall(i);
@@ -307,22 +311,16 @@ describe('#bidViewability', function() {
       expect(eventsEmitSpy.callCount).to.equal(0);
     });
 
-    it('should call the callBidBillableBidder function if the viewable bid is associated with an ad unit with deferBilling set to true', function() {
+    it('should call the triggerBilling function if the viewable bid has deferBilling set to true', function() {
       let moduleConfig = {};
-      const deferredBillingAdUnit = {
-        'code': '/harshad/Jan/2021/',
-        'deferBilling': true,
-        'bids': [
-          {
-            'bidder': 'pubmatic'
-          }
-        ]
-      };
-      adUnits.push(deferredBillingAdUnit);
-      winningBidsArray.push(PBJS_WINNING_BID);
-      bidViewability.impressionViewableHandler(moduleConfig, GPT_SLOT, null);
-      expect(callBidBillableBidderSpy.callCount).to.equal(1);
-      sinon.assert.calledWith(callBidBillableBidderSpy, PBJS_WINNING_BID);
+      const bid = {
+        ...PBJS_WINNING_BID,
+        deferBilling: true
+      }
+      winningBidsArray.push(bid);
+      bidViewability.impressionViewableHandler(moduleConfig, EVENT_OBJ);
+      expect(triggerBillingSpy.callCount).to.equal(1);
+      sinon.assert.calledWith(triggerBillingSpy, bid);
     });
   });
 });

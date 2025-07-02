@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 import { spec } from 'modules/kargoBidAdapter.js';
 import { config } from 'src/config.js';
+import { getStorageManager } from 'src/storageManager.js';
 const utils = require('src/utils');
+const STORAGE = getStorageManager({bidderCode: 'kargo'});
 
 describe('kargo adapter tests', function() {
   let bid, outstreamBid, testBids, sandbox, clock, frozenNow = new Date(), oldBidderSettings;
@@ -201,7 +203,7 @@ describe('kargo adapter tests', function() {
 
     testBids = [{ ...minimumBidParams }];
 
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.createSandbox();
     clock = sinon.useFakeTimers(frozenNow.getTime());
   });
 
@@ -1001,9 +1003,9 @@ describe('kargo adapter tests', function() {
       });
 
       it('retrieves CRB from cookies if localstorage is not functional', function() {
-        // Note: this does not cause localStorage to throw an error in Firefox so in that browser this
-        // test is not 100% true to its name
-        sandbox.stub(localStorage, 'getItem').throws();
+        // Safari does not allow stubbing localStorage methods directly.
+        // Stub the storage manager instead so all browsers behave consistently.
+        sandbox.stub(STORAGE, 'getDataFromLocalStorage').throws();
         setCrb('valid', 'invalid');
 
         const payload = getPayloadFromTestBids(testBids, bidderRequest);
@@ -1269,7 +1271,9 @@ describe('kargo adapter tests', function() {
       });
 
       it('fails gracefully if there is no localStorage', function() {
-        sandbox.stub(localStorage, 'getItem').throws();
+        sandbox.stub(STORAGE, 'getDataFromLocalStorage').throws();
+        localStorage.removeItem('krg_crb');
+        document.cookie = 'krg_crb=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
         let payload = getPayloadFromTestBids(testBids);
         expect(payload.user).to.deep.equal({
           crbIDs: {},
@@ -1589,7 +1593,9 @@ describe('kargo adapter tests', function() {
       });
 
       it('fails gracefully without localStorage', function() {
-        sandbox.stub(localStorage, 'getItem').throws();
+        sandbox.stub(STORAGE, 'getDataFromLocalStorage').throws();
+        localStorage.removeItem('krg_crb');
+        document.cookie = 'krg_crb=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
         let payload = getPayloadFromTestBids(testBids);
         expect(payload.page).to.be.undefined;
       });
@@ -1885,16 +1891,15 @@ describe('kargo adapter tests', function() {
   describe('getUserSyncs', function() {
     let crb = {};
     const clientId = 'random-client-id-string';
-    const baseUrl = 'https://crb.kargo.com/api/v1/initsyncrnd/random-client-id-string?seed=3205e885-8d37-4139-b47e-f82cff268000&idx=0&gdpr=0&gdpr_consent=&us_privacy=&gpp=&gpp_sid=';
+    const baseUrl = 'https://crb.kargo.com/api/v1/initsyncrnd/random-client-id-string?seed=3205e885-8d37-4139-b47e-f82cff268000&gdpr=0&gdpr_consent=&us_privacy=&gpp=&gpp_sid=';
 
-    function buildSyncUrls(baseUrl = 'https://crb.kargo.com/api/v1/initsyncrnd/random-client-id-string?seed=3205e885-8d37-4139-b47e-f82cff268000&idx=0&gdpr=0&gdpr_consent=&us_privacy=&gpp=&gpp_sid=') {
+    function buildSyncUrls(baseUrl = 'https://crb.kargo.com/api/v1/initsyncrnd/random-client-id-string?seed=3205e885-8d37-4139-b47e-f82cff268000&gdpr=0&gdpr_consent=&us_privacy=&gpp=&gpp_sid=') {
       let syncs = [];
-      for (let i = 0; i < 5; i++) {
-        syncs.push({
-          type: 'iframe',
-          url: baseUrl.replace(/idx=\d+&/, `idx=${i}&`),
-        });
-      }
+
+      syncs.push({
+        type: 'iframe',
+        url: baseUrl
+      });
 
       return syncs;
     }
@@ -2031,31 +2036,49 @@ describe('kargo adapter tests', function() {
     });
   });
 
-  describe('onTimeout', function() {
+  describe('onTimeout', function () {
+    let fetchStub;
+
     beforeEach(function () {
-      sinon.stub(utils, 'triggerPixel');
+      fetchStub = sinon.stub(global, 'fetch').resolves(); // Stub fetch globally
     });
 
     afterEach(function () {
-      utils.triggerPixel.restore();
+      fetchStub.restore(); // Restore the original fetch function
     });
 
-    it('does not call triggerPixel if timeout data is not provided', function() {
+    it('does not call fetch if timeout data is not provided', function () {
       spec.onTimeout(null);
-      expect(utils.triggerPixel.callCount).to.equal(0);
+      expect(fetchStub.callCount).to.equal(0);
     });
 
-    it('calls triggerPixel if any timeout data is provided', function() {
+    it('calls fetch with the correct URLs if timeout data is provided', function () {
       spec.onTimeout([
-        {auctionId: 'test-auction-id', timeout: 400},
-        {auctionId: 'test-auction-id-2', timeout: 100},
-        {auctionId: 'test-auction-id-3', timeout: 450},
-        {auctionId: 'test-auction-id-4', timeout: 500},
+        { auctionId: 'test-auction-id', timeout: 400 },
+        { auctionId: 'test-auction-id-2', timeout: 100 },
+        { auctionId: 'test-auction-id-3', timeout: 450 },
+        { auctionId: 'test-auction-id-4', timeout: 500 },
       ]);
-      expect(utils.triggerPixel.calledWith('https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id&ato=400')).to.be.true;
-      expect(utils.triggerPixel.calledWith('https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id-2&ato=100')).to.be.true;
-      expect(utils.triggerPixel.calledWith('https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id-3&ato=450')).to.be.true;
-      expect(utils.triggerPixel.calledWith('https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id-4&ato=500')).to.be.true;
+
+      expect(fetchStub.calledWith(
+        'https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id&ato=400',
+        { method: 'GET', keepalive: true }
+      )).to.be.true;
+
+      expect(fetchStub.calledWith(
+        'https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id-2&ato=100',
+        { method: 'GET', keepalive: true }
+      )).to.be.true;
+
+      expect(fetchStub.calledWith(
+        'https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id-3&ato=450',
+        { method: 'GET', keepalive: true }
+      )).to.be.true;
+
+      expect(fetchStub.calledWith(
+        'https://krk2.kargo.com/api/v1/event/timeout?aid=test-auction-id-4&ato=500',
+        { method: 'GET', keepalive: true }
+      )).to.be.true;
     });
   });
 });

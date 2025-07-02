@@ -19,7 +19,6 @@ import {
 import { BANNER, VIDEO, NATIVE } from '../src/mediaTypes.js';
 import { config } from '../src/config.js';
 import { getStorageManager } from '../src/storageManager.js';
-import { find } from '../src/polyfill.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { INSTREAM, OUTSTREAM } from '../src/video.js';
 import { Renderer } from '../src/Renderer.js';
@@ -58,19 +57,7 @@ const SOURCE_RTI_MAPPING = {
   'neustar.biz': 'fabrickId',
   'zeotap.com': 'zeotapIdPlus',
   'uidapi.com': 'UID2',
-  'adserver.org': 'TDID',
-  'id5-sync.com': '', // ID5 Universal ID, configured as id5Id
-  'crwdcntrl.net': '', // Lotame Panorama ID, lotamePanoramaId
-  'epsilon.com': '', // Publisher Link, publinkId
-  'audigent.com': '', // Hadron ID from Audigent, hadronId
-  'pubcid.org': '', // SharedID, pubcid
-  'utiq.com': '', // Utiq
-  'criteo.com': '', // Criteo
-  'euid.eu': '', // EUID
-  'intimatemerger.com': '',
-  '33across.com': '',
-  'liveintent.indexexchange.com': '',
-  'google.com': ''
+  'adserver.org': 'TDID'
 };
 const PROVIDERS = [
   'lipbid',
@@ -508,6 +495,11 @@ function parseBid(rawBid, currency, bidRequest) {
   if (rawBid.ext?.dsa) {
     bid.meta.dsa = rawBid.ext.dsa
   }
+
+  if (rawBid.ext?.ibv) {
+    bid.ext = bid.ext || {}
+    bid.ext.ibv = rawBid.ext.ibv
+  }
   return bid;
 }
 
@@ -628,8 +620,8 @@ function getBidRequest(id, impressions, validBidRequests) {
     return;
   }
   const bidRequest = {
-    ...find(validBidRequests, bid => bid.bidId === id),
-    ...find(impressions, imp => imp.id === id)
+    ...validBidRequests.find(bid => bid.bidId === id),
+    ...impressions.find(imp => imp.id === id)
   }
 
   return bidRequest;
@@ -648,10 +640,9 @@ function getEidInfo(allEids) {
   if (isArray(allEids)) {
     for (const eid of allEids) {
       const isSourceMapped = SOURCE_RTI_MAPPING.hasOwnProperty(eid.source);
-      const allowAllEidsFeatureEnabled = FEATURE_TOGGLES.isFeatureEnabled('pbjs_allow_all_eids');
       const hasUids = deepAccess(eid, 'uids.0');
 
-      if ((isSourceMapped || allowAllEidsFeatureEnabled) && hasUids) {
+      if (hasUids) {
         seenSources[eid.source] = true;
 
         if (isSourceMapped && SOURCE_RTI_MAPPING[eid.source] !== '') {
@@ -659,7 +650,6 @@ function getEidInfo(allEids) {
             rtiPartner: SOURCE_RTI_MAPPING[eid.source]
           };
         }
-        delete eid.uids[0].atype;
         toSend.push(eid);
         if (toSend.length >= MAX_EID_SOURCES) {
           break;
@@ -765,8 +755,9 @@ function buildRequest(validBidRequests, bidderRequest, impressions, version) {
         method: 'POST',
         url: exchangeUrl,
         data: deepClone(r),
-        option: {
+        options: {
           contentType: 'text/plain',
+          withCredentials: true
         },
         validBidRequests
       });
@@ -843,7 +834,7 @@ function addRequestedFeatureToggles(r, requestedFeatureToggles) {
 /**
  * enrichRequest adds userSync configs, source, and referer info to request and ixDiag objects.
  *
- * @param  {object} r                Base reuqest object.
+ * @param  {object} r                Base request object.
  * @param  {object} bidderRequest    An object containing other info like gdprConsent.
  * @param  {Array}  impressions      A list of impressions to be added to the request.
  * @param  {Array}  validBidRequests A list of valid bid request config objects.
@@ -887,9 +878,9 @@ function enrichRequest(r, bidderRequest, impressions, validBidRequests, userEids
 }
 
 /**
- * applyRegulations applies regulation info such as GDPR and GPP to the reqeust obejct.
+ * applyRegulations applies regulation info such as GDPR and GPP to the request object.
  *
- * @param  {object}  r                Base reuqest object.
+ * @param  {object}  r                Base request object.
  * @param  {object}  bidderRequest    An object containing other info like gdprConsent.
  * @return {object}                   Object enriched with regulation info describing the request to the server.
  */
@@ -988,8 +979,7 @@ function addImpressions(impressions, impKeys, r, adUnitIndex) {
         banner: {
           topframe,
           format: bannerImps.map(({ banner: { w, h }, ext }) => ({ w, h, ext }))
-        },
-      };
+        }};
 
       for (let i = 0; i < _bannerImpression.banner.format.length; i++) {
         // We add sid and externalID in imp.ext therefore, remove from banner.format[].ext
@@ -1188,6 +1178,16 @@ function addFPD(bidderRequest, r, fpd, site, user) {
     if (!isEmpty(sua)) {
       deepSetValue(r, 'device.sua', sua);
     }
+
+    const ip = fpd.device.ip;
+    if (ip) {
+      deepSetValue(r, 'device.ip', ip);
+    }
+
+    const ipv6 = fpd.device.ipv6;
+    if (ipv6) {
+      deepSetValue(r, 'device.ipv6', ipv6);
+    }
   }
 
   // regulations from ortb2
@@ -1275,7 +1275,12 @@ function addIdentifiersInfo(impressions, r, impKeys, adUnitIndex, payload, baseU
 function _getUserIds(bidRequest) {
   const userIds = bidRequest.userId || {};
 
-  return PROVIDERS.filter(provider => userIds[provider]);
+  return PROVIDERS.filter(provider => {
+    if (provider === 'lipbid') {
+      return deepAccess(userIds, 'lipb.lipbid');
+    }
+    return userIds[provider];
+  });
 }
 
 /**
