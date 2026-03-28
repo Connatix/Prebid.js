@@ -4,6 +4,7 @@ import {
 } from '../src/adapters/bidderFactory.js';
 
 import { percentInView } from '../libraries/percentInView/percentInView.js';
+import { enablePreviousAuctionInfo } from '../libraries/previousAuctionInfo/previousAuctionInfo.js';
 
 import { ajax } from '../src/ajax.js';
 import { config } from '../src/config.js';
@@ -429,4 +430,5 @@ export const spec = {
   },
 };
 
+enablePreviousAuctionInfo({ bidderCode: BIDDER_CODE });
 registerBidder(spec);
