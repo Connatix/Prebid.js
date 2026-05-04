@@ -49,6 +49,7 @@
   "adkernelBidAdapter",
   "openwebBidAdapter",
   "trustxBidAdapter",
+  "magniteBidAdapter",
   "adpod",
   "consentManagementTcf",
   "consentManagementUsp",
