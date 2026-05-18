@@ -28,6 +28,8 @@ import {
 } from '../libraries/appnexusUtils/anKeywords.js';
 import { convertCamelToUnderscore } from '../libraries/appnexusUtils/anUtils.js';
 import { chunk } from '../libraries/chunk/chunk.js';
+import { getAdUnitElement } from '../src/utils/adUnits.js';
+
 const BIDDER_CODE = 'mediafuse';
 const GVLID = 32;
 const ENDPOINT_URL_NORMAL = 'https://ib.adnxs.com/openrtb2/prebidjs';
@@ -476,7 +478,9 @@ const converter = ortbConverter({
     if (FEATURES.VIDEO && mediaType === VIDEO) {
       bidResponse.ttl = 3600;
       if (bid.nurl) {
-        bidResponse.vastImpUrl = bid.nurl;
+        bidResponse.vastTrackers = {
+          impression: [bid.nurl]
+        };
       }
 
       if (extANData?.renderer_url && extANData?.renderer_id) {
@@ -491,7 +495,7 @@ const converter = ortbConverter({
           tag_id: extANData.tag_id,
           uuid: bidResponse.requestId
         };
-        bidResponse.renderer = newRenderer(bidRequest.adUnitCode, {
+        bidResponse.renderer = newRenderer(bidRequest, {
           renderer_url: extANData.renderer_url,
           renderer_id: extANData.renderer_id,
         }, rendererOptions);
@@ -676,13 +680,13 @@ function getBidFloor(bid) {
   return null;
 }
 
-function newRenderer(adUnitCode, rtbBid, rendererOptions = {}) {
+function newRenderer(bidRequest, rtbBid, rendererOptions = {}) {
   const renderer = Renderer.install({
     id: rtbBid.renderer_id,
     url: rtbBid.renderer_url,
     config: rendererOptions,
     loaded: false,
-    adUnitCode,
+    adUnitCode: bidRequest.adUnitCode,
   });
 
   try {
@@ -696,7 +700,7 @@ function newRenderer(adUnitCode, rtbBid, rendererOptions = {}) {
     loaded: () => logMessage('Mediafuse outstream video loaded event'),
     ended: () => {
       logMessage('Mediafuse outstream renderer video event');
-      const el = document.getElementById(adUnitCode);
+      const el = getAdUnitElement(bidRequest);
       if (el) {
         el.style.display = 'none';
       }
@@ -705,9 +709,9 @@ function newRenderer(adUnitCode, rtbBid, rendererOptions = {}) {
   return renderer;
 }
 
-function hidedfpContainer(elementId) {
+function hidedfpContainer(container) {
   try {
-    const el = document.getElementById(elementId).querySelectorAll("div[id^='google_ads']");
+    const el = container.querySelectorAll("div[id^='google_ads']");
     if (el[0]) {
       el[0].style.setProperty('display', 'none');
     }
@@ -716,9 +720,9 @@ function hidedfpContainer(elementId) {
   }
 }
 
-function hideSASIframe(elementId) {
+function hideSASIframe(container) {
   try {
-    const el = document.getElementById(elementId).querySelectorAll("script[id^='sas_script']");
+    const el = container.querySelectorAll("script[id^='sas_script']");
     if (el[0]?.nextSibling?.localName === 'iframe') {
       el[0].nextSibling.style.setProperty('display', 'none');
     }
@@ -739,8 +743,9 @@ function handleOutstreamRendererEvents(bid, id, eventName) {
 }
 
 function outstreamRender(bid, doc) {
-  hidedfpContainer(bid.adUnitCode);
-  hideSASIframe(bid.adUnitCode);
+  const container = getAdUnitElement(bid);
+  hidedfpContainer(container);
+  hideSASIframe(container);
   bid.renderer.push(() => {
     const win = doc?.defaultView || window;
     if (win.ANOutstreamVideo) {

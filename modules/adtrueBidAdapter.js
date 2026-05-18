@@ -1,10 +1,10 @@
-import { getDNT } from '../libraries/dnt/index.js';
 import { logWarn, isArray, inIframe, isNumber, isStr, deepClone, deepSetValue, logError, deepAccess, isBoolean } from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { config } from '../src/config.js';
 import { getStorageManager } from '../src/storageManager.js';
 import { convertOrtbRequestToProprietaryNative } from '../src/native.js';
+import { getDNT } from '../libraries/dnt/index.js';
 
 const BIDDER_CODE = 'adtrue';
 const storage = getStorageManager({ bidderCode: BIDDER_CODE });
@@ -220,7 +220,7 @@ function _parseNativeResponse(bid, newBid) {
     try {
       adm = JSON.parse(bid.adm.replace(/\\/g, ''));
     } catch (ex) {
-      // logWarn(LOG_WARN_PREFIX + 'Error: Cannot parse native reponse for ad response: ' + newBid.adm);
+      // logWarn(LOG_WARN_PREFIX + 'Error: Cannot parse native response for ad response: ' + newBid.adm);
       return;
     }
     if (adm && adm.native && adm.native.assets && adm.native.assets.length > 0) {
@@ -359,7 +359,7 @@ function _checkMediaType(adm, newBid) {
         newBid.mediaType = NATIVE;
       }
     } catch (e) {
-      logWarn(LOG_WARN_PREFIX + 'Error: Cannot parse native reponse for ad response: ' + adm);
+      logWarn(LOG_WARN_PREFIX + 'Error: Cannot parse native response for ad response: ' + adm);
     }
   }
 }

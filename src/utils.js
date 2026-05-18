@@ -89,7 +89,7 @@ export function generateUUID(placeholder) {
  */
 function _getRandomData() {
   if (window && window.crypto && window.crypto.getRandomValues) {
-    return crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+    return window.crypto.getRandomValues(new Uint8Array(1))[0] % 16;
   } else {
     return Math.random() * 16;
   }
@@ -654,6 +654,14 @@ export function isSafariBrowser() {
   return /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
 }
 
+export function isFirefoxBrowser() {
+  return /firefox|fxios/i.test(navigator.userAgent);
+}
+
+export function isChromeIOSBrowser() {
+  return /crios|crmo/i.test(navigator.userAgent);
+}
+
 export function replaceMacros(str, subs) {
   if (!str) return;
   return Object.entries(subs).reduce((str, [key, val]) => {
@@ -772,7 +780,7 @@ export function groupBy(xs, key) {
  */
 export function isValidMediaTypes(mediaTypes) {
   const SUPPORTED_MEDIA_TYPES = ['banner', 'native', 'video', 'audio'];
-  const SUPPORTED_STREAM_TYPES = ['instream', 'outstream', 'adpod'];
+  const SUPPORTED_STREAM_TYPES = ['instream', 'outstream'];
 
   const types = Object.keys(mediaTypes);
 
@@ -810,7 +818,9 @@ export const compareCodeAndSlot = (slot, adUnitCode) => slot.getAdUnitPath() ===
  * @return filter function
  */
 export function isAdUnitCodeMatchingSlot(slot) {
-  return (adUnitCode) => compareCodeAndSlot(slot, adUnitCode);
+  const customGptSlotMatching = config.getConfig('customGptSlotMatching');
+  const match = isFn(customGptSlotMatching) && customGptSlotMatching(slot);
+  return isFn(match) ? match : (adUnitCode) => compareCodeAndSlot(slot, adUnitCode);
 }
 
 /**
@@ -1012,7 +1022,7 @@ function mergeDeepHelper(target, source) {
     const val = source[key];
 
     if (isPlainObject(val)) {
-      if (!target[key]) {
+      if (!isPlainObject(target[key])) {
         target[key] = {};
       }
       mergeDeepHelper(target[key], val);

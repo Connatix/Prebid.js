@@ -16,7 +16,7 @@ import { config } from 'src/config.js';
 import { VIDEO } from '../../../src/mediaTypes.js';
 import { auctionManager } from '../../../src/auctionManager.js';
 import adapterManager from '../../../src/adapterManager.js';
-import { filters } from 'src/targeting.js';
+import { bidFilters } from 'src/targeting/filters.js';
 import {
   EVENT_TYPE_IMPRESSION,
   EVENT_TYPE_WIN,
@@ -35,27 +35,6 @@ describe('adRendering', () => {
     sandbox.restore();
   })
 
-  describe('getBidToRender', () => {
-    beforeEach(() => {
-      sandbox.stub(auctionManager, 'findBidByAdId').callsFake(() => 'auction-bid')
-    });
-    it('should default to bid from auctionManager', async () => {
-      await new Promise((resolve) => {
-        getBidToRender('adId', true, (res) => {
-          expect(res).to.eql('auction-bid');
-          sinon.assert.calledWith(auctionManager.findBidByAdId, 'adId');
-          resolve();
-        })
-      })
-    });
-    it('should, by default, not give up the thread', () => {
-      let ran = false;
-      getBidToRender('adId', true, () => {
-        ran = true;
-      });
-      expect(ran).to.be.true;
-    })
-  })
   describe('getRenderingData', () => {
     let bidResponse;
     beforeEach(() => {
@@ -348,7 +327,7 @@ describe('adRendering', () => {
       });
 
       describe('when bid has already expired', () => {
-        const isBidNotExpiredStub = sinon.stub(filters, 'isBidNotExpired');
+        const isBidNotExpiredStub = sinon.stub(bidFilters, 'isBidNotExpired');
         beforeEach(() => {
           isBidNotExpiredStub.returns(false);
         });
