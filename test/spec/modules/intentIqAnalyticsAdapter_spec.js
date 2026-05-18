@@ -1,5 +1,9 @@
 import { expect } from "chai";
-import iiqAnalyticsAnalyticsAdapter from "modules/intentIqAnalyticsAdapter.js";
+import iiqAnalyticsAnalyticsAdapter, {
+  REPORTER_ID,
+  preparePayload,
+  restoreReportList,
+} from "modules/intentIqAnalyticsAdapter.js";
 import * as utils from "src/utils.js";
 import { server } from "test/mocks/xhr.js";
 import { config } from "src/config.js";
@@ -7,11 +11,6 @@ import { EVENTS } from "src/constants.js";
 import * as events from "src/events.js";
 import { getGlobal } from "../../../src/prebidGlobal.js";
 import sinon from "sinon";
-import {
-  REPORTER_ID,
-  preparePayload,
-  restoreReportList,
-} from "../../../modules/intentIqAnalyticsAdapter.js";
 import {
   FIRST_PARTY_KEY,
   PREBID,
@@ -124,7 +123,6 @@ const getWonRequest = () => ({
   bidderCode: "pubmatic",
   width: 728,
   height: 90,
-  statusMessage: "Bid available",
   adId: "23caeb34c55da51",
   requestId: "87615b45ca4973",
   transactionId: "5e69fd76-8c86-496a-85ce-41ae55787a50",
@@ -1019,5 +1017,57 @@ describe("IntentIQ tests all", function () {
     expect(server.requests.length).to.be.above(0);
     // Verify that the group from options is used in the payload
     expect(decodedPayload).to.have.property("abGroup", providedGroup);
+  });
+
+  it("should include partnerAuctionId in query params and payload if provided by partner (GET)", function () {
+    const partnerAuctionId = "TEST-PAUCID-123";
+    enableAnalyticWithSpecialOptions({
+      manualWinReportEnabled: true,
+      reportMethod: "GET"
+    });
+
+    window[`intentIqAnalyticsAdapter_${partner}`].reportExternalWin({
+      cpm: 1,
+      currency: "USD",
+      adType: "banner",
+      partnerAuctionId
+    });
+
+    const request = server.requests[0];
+    const url = new URL(request.url);
+    const paucidParam = url.searchParams.get("paucid");
+    const payloadEncoded = url.searchParams.get("payload");
+    const payloadDecoded = JSON.parse(
+      atob(JSON.parse(payloadEncoded)[0])
+    );
+
+    expect(payloadEncoded).to.be.a('string');
+    expect(JSON.parse(paucidParam)).to.deep.equal([partnerAuctionId]);
+    expect(payloadDecoded.partnerAuctionId).to.equal(partnerAuctionId);
+  });
+
+  it("should include partnerAuctionId in query params and payload if provided by partner (POST)", function () {
+    const partnerAuctionId = "TEST-PAUCID-123";
+    enableAnalyticWithSpecialOptions({
+      manualWinReportEnabled: true,
+      reportMethod: "POST"
+    });
+
+    window[`intentIqAnalyticsAdapter_${partner}`].reportExternalWin({
+      cpm: 1,
+      currency: "USD",
+      adType: "banner",
+      partnerAuctionId
+    });
+
+    const request = server.requests[0];
+    const url = new URL(request.url);
+    const paucidParam = url.searchParams.get("paucid");
+    const bodyArray = JSON.parse(request.requestBody);
+    const payloadDecoded = JSON.parse(atob(bodyArray[0]));
+
+    expect(request.requestBody).to.be.a('string');
+    expect(JSON.parse(paucidParam)).to.deep.equal([partnerAuctionId]);
+    expect(payloadDecoded.partnerAuctionId).to.equal(partnerAuctionId);
   });
 });

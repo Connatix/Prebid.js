@@ -1,19 +1,18 @@
 import { expect } from 'chai';
 import * as utils from '../../../src/utils.js';
-import { internal as utilInternal, deepClone } from '../../../src/utils.js';
+import { deepClone, internal as utilInternal } from '../../../src/utils.js';
 import {
-  isUsingNewSizeMapping,
   checkAdUnitSetupHook,
   checkBidderSizeConfigFormat,
-  isLabelActivated,
-  isSizeConfigActivated,
   getActiveSizeBucket,
-  getRelevantMediaTypesForBidder,
-  sizeMappingInternalStore,
   getAdUnitDetail,
   getFilteredMediaTypes,
-  getBids,
-  internal, setupAdUnitMediaTypes
+  getRelevantMediaTypesForBidder,
+  internal,
+  isLabelActivated,
+  isSizeConfigActivated,
+  isUsingNewSizeMapping,
+  setupAdUnitMediaTypes
 } from '../../../modules/sizeMappingV2.js';
 
 import { adUnitSetupChecks } from '../../../src/prebid.js';
@@ -650,7 +649,7 @@ describe('sizeMappingV2', function () {
             },
             native: {}
           },
-          bids: [{bidder: 'appnexus', params: 1234}]
+          bids: [{ bidder: 'appnexus', params: 1234 }]
         }];
 
         checkAdUnitSetupHook(adUnit);
@@ -672,7 +671,7 @@ describe('sizeMappingV2', function () {
             },
             native: {}
           },
-          bids: [{bidder: 'appnexus', params: 1234}]
+          bids: [{ bidder: 'appnexus', params: 1234 }]
         }];
 
         checkAdUnitSetupHook(adUnit);
@@ -691,7 +690,7 @@ describe('sizeMappingV2', function () {
           mediaTypes: {
             native: {}
           },
-          bids: [{bidder: 'appnexus', params: 1234}]
+          bids: [{ bidder: 'appnexus', params: 1234 }]
         }];
 
         checkAdUnitSetupHook(adUnit);
@@ -1456,7 +1455,7 @@ describe('sizeMappingV2', function () {
       adUnitDetail.transformedMediaTypes.native = {};
       const actual = setupAdUnitMediaTypes(adUnits, [])[0];
       const bids = bidderMap(actual);
-      expect(bids.rubicon.mediaTypes).to.deep.equal({banner: adUnitDetail.transformedMediaTypes.banner});
+      expect(bids.rubicon.mediaTypes).to.deep.equal({ banner: adUnitDetail.transformedMediaTypes.banner });
     });
   });
 });

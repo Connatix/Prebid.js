@@ -50,7 +50,7 @@ export function VideojsProvider(providerConfig, vjs_, adState_, timeState_, call
   let player = null;
   let playerVersion = null;
   let playerIsSetup = false;
-  const {playerConfig, divId} = providerConfig;
+  const { playerConfig, divId } = providerConfig;
   let isMuted;
   let previousLastTimePosition = 0;
   let lastTimePosition = 0;
@@ -141,7 +141,7 @@ export function VideojsProvider(providerConfig, vjs_, adState_, timeState_, call
       // sequence - TODO not yet supported
       maxextended: -1,
       boxingallowed: 1,
-      playbackmethod: [ playBackMethod ],
+      playbackmethod: [playBackMethod],
       playbackend: PLAYBACK_END.VIDEO_COMPLETION,
       // Per ortb 7.4 skip is omitted since neither the player nor ima plugin imposes a skip button, or a skipmin/max
     };
@@ -614,7 +614,7 @@ export const utils = {
     return params.adPluginConfig || {}; // TODO: add adPluginConfig to spec
   },
 
-  getPositionCode: function({left, top, width, height}) {
+  getPositionCode: function({ left, top, width, height }) {
     const bottom = getWinDimensions().innerHeight - top - height;
     const right = getWinDimensions().innerWidth - left - width;
 
@@ -822,28 +822,6 @@ export function adStateFactory() {
       // adTagUrl - for now, only has request ad tag
       // adPlacementType
     };
-
-    const adPodInfo = event.adPodInfo;
-    if (adPodInfo && adPodInfo.podIndex > -1) {
-      updates.adPodCount = adPodInfo.totalAds;
-      updates.adPodIndex = adPodInfo.adPosition - 1; // Per IMA docs, adPosition is 1 based.
-    }
-
-    if (adPodInfo && adPodInfo.timeOffset) {
-      switch (adPodInfo.timeOffset) {
-        case -1:
-          updates.offset = 'post';
-          break
-
-        case 0:
-          // TODO: Defaults to 0 if this ad is not part of a pod, or the pod is not part of an ad playlist. - need to check if loaded dynamically and pass last content time update
-          updates.offset = 'pre';
-          break
-
-        default:
-          updates.offset = '' + adPodInfo.timeOffset;
-      }
-    }
 
     if (skippable) {
       updates.skipafter = event.skipTimeOffset;

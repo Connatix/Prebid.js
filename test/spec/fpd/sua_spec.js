@@ -4,7 +4,6 @@ import {
   SUA_SOURCE_HIGH_ENTROPY,
   SUA_SOURCE_LOW_ENTROPY,
   SUA_SOURCE_UNKNOWN,
-  suaFromUAData,
   uaDataToSUA
 } from '../../../src/fpd/sua.js';
 
@@ -20,7 +19,7 @@ describe('uaDataToSUA', () => {
     it(`should not set ${suaKey} if ${uaKey} is missing from UAData`, () => {
       const example = {
         platform: 'Windows',
-        brands: [{brand: 'Mock', version: 'mk'}],
+        brands: [{ brand: 'Mock', version: 'mk' }],
         mobile: true,
         model: 'mockModel',
         bitness: '64',
@@ -191,7 +190,7 @@ describe('lowEntropySUAAccessor', () => {
   })
 
   it('should return mobile and source', () => {
-    expect(getSUA(new MockUserAgentData())).to.eql({mobile: 0, source: 1})
+    expect(getSUA(new MockUserAgentData())).to.eql({ mobile: 0, source: 1 })
   })
 });
 

@@ -2,7 +2,6 @@ import * as utils from '../../../src/utils.js';
 import {
   BB_RENDERER_URL,
   ENDPOINT,
-  VERSION,
   _internal,
   setExtraParam,
   spec
@@ -12,7 +11,7 @@ import { config } from '../../../src/config.js';
 import { executeRenderer } from '../../../src/Renderer.js';
 import { expect } from 'chai';
 import { userSync } from '../../../src/userSync.js';
-import {getGlobal} from '../../../src/prebidGlobal.js';
+import { getGlobal } from '../../../src/prebidGlobal.js';
 
 const BidRequestBuilder = function BidRequestBuilder(options) {
   const defaults = {
@@ -110,7 +109,6 @@ describe('Adagio bid adapter', () => {
     window.ADAGIO.pbjsAdUnits = [];
     window.ADAGIO.queue = [];
     window.ADAGIO.versions = {};
-    window.ADAGIO.versions.adagioBidderAdapter = VERSION;
     window.ADAGIO.pageviewId = 'dda61753-4059-4f75-b0bf-3f60bd2c4d9a';
 
     utilsMock = sinon.mock(utils);
@@ -197,12 +195,14 @@ describe('Adagio bid adapter', () => {
     });
 
     it('should use adUnit code for adUnitElementId and placement params', function() {
-      const bid01 = new BidRequestBuilder({ params: {
-        organizationId: '1000',
-        site: 'site-name',
-        useAdUnitCodeAsPlacement: true,
-        useAdUnitCodeAsAdUnitElementId: true
-      }}).build();
+      const bid01 = new BidRequestBuilder({
+        params: {
+          organizationId: '1000',
+          site: 'site-name',
+          useAdUnitCodeAsPlacement: true,
+          useAdUnitCodeAsAdUnitElementId: true
+        }
+      }).build();
 
       expect(spec.isBidRequestValid(bid01)).to.equal(true);
       expect(bid01.params.adUnitElementId).to.equal('adunit-code');
@@ -210,20 +210,26 @@ describe('Adagio bid adapter', () => {
     });
 
     it('should return false when a required param is missing', function() {
-      const bid01 = new BidRequestBuilder({ params: {
-        organizationId: '1000',
-        placement: 'PAVE_ATF'
-      }}).build();
+      const bid01 = new BidRequestBuilder({
+        params: {
+          organizationId: '1000',
+          placement: 'PAVE_ATF'
+        }
+      }).build();
 
-      const bid02 = new BidRequestBuilder({ params: {
-        organizationId: '1000',
-        site: 'SITE-NAME'
-      }}).build();
+      const bid02 = new BidRequestBuilder({
+        params: {
+          organizationId: '1000',
+          site: 'SITE-NAME'
+        }
+      }).build();
 
-      const bid03 = new BidRequestBuilder({ params: {
-        placement: 'PAVE_ATF',
-        site: 'SITE-NAME'
-      }}).build();
+      const bid03 = new BidRequestBuilder({
+        params: {
+          placement: 'PAVE_ATF',
+          site: 'SITE-NAME'
+        }
+      }).build();
 
       sandbox.stub(config, 'getConfig').withArgs('adagio').returns({
         siteId: '1000'
@@ -423,7 +429,9 @@ describe('Adagio bid adapter', () => {
                     dom_loading: '111111111',
                   }
                 }
-              }}}
+              }
+            }
+          }
         },
         ortb2Imp: {
           ext: {
@@ -559,52 +567,54 @@ describe('Adagio bid adapter', () => {
         });
       });
 
-      it('Update mediaTypes.video with OpenRTB options. Validate and sanitize whitelisted OpenRTB', function() {
-        sandbox.spy(utils, 'logWarn');
-        const bid01 = new BidRequestBuilder({
-          adUnitCode: 'adunit-code-01',
-          mediaTypes: {
-            banner: { sizes: [[300, 250]] },
+      if (FEATURES.VIDEO) {
+        it('Update mediaTypes.video with OpenRTB options. Validate and sanitize whitelisted OpenRTB', function() {
+          sandbox.spy(utils, 'logWarn');
+          const bid01 = new BidRequestBuilder({
+            adUnitCode: 'adunit-code-01',
+            mediaTypes: {
+              banner: { sizes: [[300, 250]] },
+              video: {
+                context: 'outstream',
+                playerSize: [[300, 250]],
+                mimes: ['video/mp4'],
+                api: 'val', // will be removed because invalid
+                playbackmethod: ['val'], // will be removed because invalid
+              }
+            },
+          }).withParams({
+            // options in video, will overide
             video: {
-              context: 'outstream',
-              playerSize: [[300, 250]],
-              mimes: ['video/mp4'],
-              api: 'val', // will be removed because invalid
-              playbackmethod: ['val'], // will be removed because invalid
+              skip: 1,
+              skipafter: 4,
+              minduration: 10,
+              maxduration: 30,
+              plcmt: 4,
+              protocols: [8]
             }
-          },
-        }).withParams({
-          // options in video, will overide
-          video: {
+          }).build();
+
+          const bidderRequest = new BidderRequestBuilder().build();
+          const expected = {
+            context: 'outstream',
+            playerSize: [[300, 250]],
+            playerName: 'adagio',
+            mimes: ['video/mp4'],
             skip: 1,
             skipafter: 4,
             minduration: 10,
             maxduration: 30,
             plcmt: 4,
-            protocols: [8]
-          }
-        }).build();
+            protocols: [8],
+            w: 300,
+            h: 250
+          };
 
-        const bidderRequest = new BidderRequestBuilder().build();
-        const expected = {
-          context: 'outstream',
-          playerSize: [[300, 250]],
-          playerName: 'adagio',
-          mimes: ['video/mp4'],
-          skip: 1,
-          skipafter: 4,
-          minduration: 10,
-          maxduration: 30,
-          plcmt: 4,
-          protocols: [8],
-          w: 300,
-          h: 250
-        };
-
-        const requests = spec.buildRequests([bid01], bidderRequest);
-        expect(requests).to.have.lengthOf(1);
-        expect(requests[0].data.adUnits[0].mediaTypes.video).to.deep.equal(expected);
-      });
+          const requests = spec.buildRequests([bid01], bidderRequest);
+          expect(requests).to.have.lengthOf(1);
+          expect(requests[0].data.adUnits[0].mediaTypes.video).to.deep.equal(expected);
+        });
+      }
     });
 
     describe('with sChain', function() {
@@ -896,8 +906,8 @@ describe('Adagio bid adapter', () => {
         const requests = spec.buildRequests([bid01], bidderRequest);
 
         expect(requests[0].data.adUnits[0].mediaTypes.banner.sizes.length).to.equal(2);
-        expect(requests[0].data.adUnits[0].mediaTypes.banner.bannerSizes[0]).to.deep.equal({size: [300, 250], floor: 1});
-        expect(requests[0].data.adUnits[0].mediaTypes.banner.bannerSizes[1]).to.deep.equal({size: [300, 600], floor: 1});
+        expect(requests[0].data.adUnits[0].mediaTypes.banner.bannerSizes[0]).to.deep.equal({ size: [300, 250], floor: 1 });
+        expect(requests[0].data.adUnits[0].mediaTypes.banner.bannerSizes[1]).to.deep.equal({ size: [300, 600], floor: 1 });
         expect(requests[0].data.adUnits[0].mediaTypes.video.floor).to.equal(1);
       });
 
@@ -1060,12 +1070,12 @@ describe('Adagio bid adapter', () => {
             model: 'iPhone 12 Pro Max',
             os: 'iOS',
             osv: '17.4',
-            ext: {fiftyonedegrees_deviceId: '17595-133085-133468-18092'},
+            ext: { fiftyonedegrees_deviceId: '17595-133085-133468-18092' },
           },
         };
 
         const bid01 = new BidRequestBuilder().withParams().build();
-        const bidderRequest = new BidderRequestBuilder({ortb2}).build();
+        const bidderRequest = new BidderRequestBuilder({ ortb2 }).build();
         const requests = spec.buildRequests([bid01], bidderRequest);
 
         const expectedData = {
@@ -1361,7 +1371,7 @@ describe('Adagio bid adapter', () => {
       });
 
       it('should logError if correct renderer is not defined', function() {
-        window.bluebillywig = { renderers: [ { _id: 'adagio-another_renderer' } ] };
+        window.bluebillywig = { renderers: [{ _id: 'adagio-another_renderer' }] };
 
         utilsMock.expects('logError').withExactArgs('Adagio: couldn\'t find a renderer with ID adagio-renderer').once();
 

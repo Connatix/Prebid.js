@@ -1,6 +1,6 @@
-import { expect } from 'chai'
-import { spec, _getPlatform } from 'modules/resetdigitalBidAdapter.js'
-import { newBidder } from 'src/adapters/bidderFactory.js'
+import { expect } from 'chai';
+import { spec } from 'modules/resetdigitalBidAdapter.js';
+import { newBidder } from 'src/adapters/bidderFactory.js';
 
 const br = {
   body: {
@@ -82,7 +82,7 @@ describe('resetdigitalBidAdapter', function () {
   })
 
   describe('buildRequests', function () {
-    const req = spec.buildRequests([ bannerRequest ], { refererInfo: { } })
+    const req = spec.buildRequests([bannerRequest], { refererInfo: { } })
     let rdata
 
     it('should return request object', function () {

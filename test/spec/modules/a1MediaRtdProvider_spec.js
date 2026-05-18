@@ -1,6 +1,5 @@
-import { subModuleObj } from 'modules/a1MediaRtdProvider.js';
+import { subModuleObj, A1_AUD_KEY, A1_SEG_KEY, getStorageData, storage } from 'modules/a1MediaRtdProvider.js';
 import { loadExternalScriptStub } from 'test/mocks/adloaderStub.js';
-import { A1_AUD_KEY, A1_SEG_KEY, getStorageData, storage } from '../../../modules/a1MediaRtdProvider.js';
 import { expect } from 'chai';
 
 const configWithParams = {
@@ -30,7 +29,7 @@ const a1TestOrtbObj = {
         ext: {
           segtax: 900
         },
-        segment: [{id: 'test'}]
+        segment: [{ id: 'test' }]
       }
     ],
     ext: {
