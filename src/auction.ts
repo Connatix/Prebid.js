@@ -12,12 +12,11 @@ import {
 } from './utils.js';
 import { getPriceBucketString } from './cpmBucketManager.js';
 import { isNativeResponse, setNativeResponseProperties } from './native.js';
-import { batchAndStore, storeLocally } from './videoCache.js';
+import { handleVideoBidCaching } from './videoCache.js';
 import { Renderer } from './Renderer.js';
 import { config } from './config.js';
 import { userSync } from './userSync.js';
 import { hook, ignoreCallbackArg } from './hook.js';
-import { OUTSTREAM } from './video.js';
 import { AUDIO, VIDEO } from './mediaTypes.js';
 import { auctionManager } from './auctionManager.js';
 import { bidderSettings } from './bidderSettings.js';
@@ -29,16 +28,17 @@ import { type Metrics, useMetrics } from './utils/perfMetrics.js';
 import { adjustCpm } from './utils/cpm.js';
 import { getGlobal } from './prebidGlobal.js';
 import { ttlCollection } from './utils/ttlCollection.js';
-import { getMinBidCacheTTL, onMinBidCacheTTLChange } from './bidTTL.js';
+import { getEffectiveMinBidCacheTTL, onMinBidCacheTTLChange } from './bidTTL.js';
 import type { Bid, BidResponse } from "./bidfactory.ts";
 import type { AdUnitCode, BidderCode, Identifier, ORTBFragments } from './types/common.d.ts';
 import type { TargetingMap } from "./targeting.ts";
-import type { AdUnit } from "./adUnits.ts";
+import type { AdUnit, AdUnitDefinition } from "./adUnits.ts";
 import type { MediaType } from "./mediaTypes.ts";
 import type { VideoContext } from "./video.ts";
 import { isActivityAllowed } from './activities/rules.js';
 import { ACTIVITY_ADD_BID_RESPONSE } from './activities/activities.js';
 import { MODULE_TYPE_BIDDER } from './activities/modules.ts';
+import { wrapInBids } from "./utils/wrapsInBids.ts";
 
 const { syncUsers } = userSync;
 
@@ -101,10 +101,6 @@ declare module './events' {
      */
     [EVENTS.BID_TIMEOUT]: [BidRequest<BidderCode>[]];
     /**
-     * Fired when a bid is received.
-     */
-    [EVENTS.BID_ACCEPTED]: [Partial<Bid>];
-    /**
      * Fired when a bid is rejected.
      */
     [EVENTS.BID_REJECTED]: [Partial<Bid>];
@@ -114,13 +110,18 @@ declare module './events' {
      */
     [EVENTS.NO_BID]: [BidRequest<BidderCode>];
     /**
-     * Fired when a bid is received.
+     * Fired when a bid is received and added to the auction.
      */
     [EVENTS.BID_RESPONSE]: [Bid];
     /**
      * Fired once for each bid, immediately after its adjustment (see bidCpmAdjustment).
      */
     [EVENTS.BID_ADJUSTMENT]: [Partial<Bid>];
+    /**
+     * Fired when a bid is received and slated to the added to the auction, after `bidAdjustment`, but before targeting
+     * is calculated and before VAST caching (in the case of video or audio bids).
+     */
+    [EVENTS.BID_ACCEPTED]: [Partial<Bid>];
   }
 }
 
@@ -147,6 +148,18 @@ export interface AuctionOptionsConfig {
    * to pre-10.12 rendering logic.
    */
   legacyRender?: boolean;
+
+  /**
+   * When true, reject bids without a response `mediaType` when the ad unit has an explicit mediaTypes list.
+   * Default is false to preserve legacy behavior for responses that omit mediaType.
+   */
+  rejectUnknownMediaTypes?: boolean;
+
+  /**
+   * When true, reject bids with a response `mediaType` that does not match the ad unit's explicit mediaTypes list.
+   * Default is true; set to false to keep mismatched mediaType responses.
+   */
+  rejectInvalidMediaTypes?: boolean;
 }
 
 export interface PriceBucketConfig {
@@ -189,7 +202,10 @@ export function newAuction({ adUnits, adUnitCodes, callback, cbTimeout, labels, 
   let _bidderRequests: BidderRequest<BidderCode>[] = [];
   const _bidsReceived = ttlCollection<Bid>({
     startTime: (bid) => bid.responseTimestamp,
-    ttl: (bid) => getMinBidCacheTTL() == null ? null : Math.max(getMinBidCacheTTL(), bid.ttl) * 1000
+    ttl: (bid) => {
+      const minTTL = getEffectiveMinBidCacheTTL(bid);
+      return minTTL == null ? null : Math.max(minTTL, bid.ttl) * 1000;
+    }
   });
   let _noBids: BidRequest<BidderCode>[] = [];
   let _winningBids: Bid[] = [];
@@ -426,10 +442,11 @@ export function newAuction({ adUnits, adUnitCodes, callback, cbTimeout, labels, 
 
   function setBidTargeting(bid) {
     adapterManager.callSetTargetingBidder(bid.adapterCode || bid.bidder, bid);
+    _bidsReceived.refresh();
   }
 
-  events.on(EVENTS.SEAT_NON_BID, (event) => {
-    if (event.auctionId === _auctionId) {
+  events.on(EVENTS.PBS_ANALYTICS, (event) => {
+    if (event.auctionId === _auctionId && event.seatnonbid != null) {
       addNonBids(event.seatnonbid)
     }
   });
@@ -618,44 +635,17 @@ export function addBidToAuction(auctionInstance, bidResponse: Bid) {
 
 // Video bids may fail if the cache is down, or there's trouble on the network.
 function tryAddVideoAudioBid(auctionInstance, bidResponse, afterBidAdded, { index = auctionManager.index } = {}) {
-  let addBid = true;
-
   const videoMediaType = index.getMediaTypes({
     requestId: bidResponse.originalRequestId || bidResponse.requestId,
     adUnitId: bidResponse.adUnitId
   })?.video;
-  const context = videoMediaType && videoMediaType?.context;
-  const useCacheKey = videoMediaType && videoMediaType?.useCacheKey;
-  const {
-    useLocal,
-    url: cacheUrl,
-    ignoreBidderCacheKey
-  } = config.getConfig('cache') || {};
-
-  if (useLocal) {
-    // stores video/audio bid vast as local blob in the browser
-    storeLocally(bidResponse);
-  } else if (cacheUrl && (useCacheKey || context !== OUTSTREAM)) {
-    if (!bidResponse.videoCacheKey || ignoreBidderCacheKey) {
-      addBid = false;
-      callPrebidCache(auctionInstance, bidResponse, afterBidAdded, videoMediaType);
-    } else if (!bidResponse.vastUrl) {
-      logError('videoCacheKey specified but not required vastUrl for video bid');
-      addBid = false;
-    }
-  }
-
-  if (addBid) {
-    addBidToAuction(auctionInstance, bidResponse);
-    afterBidAdded();
-  }
+  handleVideoBidCaching({
+    bidResponse,
+    auctionInstance,
+    afterBidAdded,
+    videoMediaType
+  });
 }
-
-export const callPrebidCache = hook('async', function(auctionInstance, bidResponse, afterBidAdded, videoMediaType) {
-  if (FEATURES.VIDEO || FEATURES.AUDIO) {
-    batchAndStore(auctionInstance, bidResponse, afterBidAdded);
-  }
-}, 'callPrebidCache');
 
 declare module './bidfactory' {
   interface BaseBidResponse {
@@ -666,6 +656,7 @@ declare module './bidfactory' {
   }
 
   interface BaseBid {
+    element?: AdUnitDefinition['element'];
     /**
      * true if this bid is for an interstitial slot.
      */
@@ -775,6 +766,7 @@ function getPreparedBidForAuction(bid: Partial<Bid>, { index = auctionManager.in
 
   const adUnit = index.getAdUnit(bid);
   bid.instl = adUnit?.ortb2Imp?.instl === 1;
+  bid.element = adUnit?.element;
 
   // a publisher-defined renderer can be used to render bids
   const bidRenderer = index.getBidRequest(bid)?.renderer || adUnit.renderer;
@@ -1127,8 +1119,8 @@ export function adjustBids(bid) {
  * @returns {*} as { [adUnitCode]: { bids: [Bid, Bid, Bid] } }
  */
 function groupByPlacement(bidsByPlacement, bid) {
-  if (!bidsByPlacement[bid.adUnitCode]) { bidsByPlacement[bid.adUnitCode] = { bids: [] }; }
-  bidsByPlacement[bid.adUnitCode].bids.push(bid);
+  if (!bidsByPlacement[bid.adUnitCode]) { bidsByPlacement[bid.adUnitCode] = wrapInBids([]); }
+  bidsByPlacement[bid.adUnitCode].push(bid);
   return bidsByPlacement;
 }
 

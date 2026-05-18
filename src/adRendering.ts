@@ -19,7 +19,7 @@ import { hook } from './hook.js';
 import { fireNativeTrackers } from './native.js';
 import adapterManager from './adapterManager.js';
 import { useMetrics } from './utils/perfMetrics.js';
-import { filters } from './targeting.js';
+import { bidFilters } from './targeting/filters.ts';
 import { EVENT_TYPE_WIN, parseEventTrackers, TRACKER_METHOD_IMG } from './eventTrackers.js';
 import type { Bid } from "./bidfactory.ts";
 import { yieldsIf } from "./utils/yield.ts";
@@ -55,15 +55,6 @@ declare module './events' {
     [EVENTS.BROWSER_INTERVENTION]: [BrowserInterventionData];
   }
 }
-
-/**
- * NOTE: this is here to support PAAPI, which is soon to be removed;
- *  and should *not* be made asynchronous or it breaks `legacyRender` (unyielding)
- *  rendering logic
- */
-export const getBidToRender = hook('sync', function (adId, forRender, cb) {
-  cb(auctionManager.findBidByAdId(adId));
-})
 
 export const markWinningBid = hook('sync', function (bid) {
   (parseEventTrackers(bid.eventtrackers)[EVENT_TYPE_WIN]?.[TRACKER_METHOD_IMG] || [])
@@ -273,7 +264,7 @@ export function handleRender({ renderFn, resizeFn, adId, options, bidResponse, d
         return;
       }
     }
-    if (!filters.isBidNotExpired(bidResponse)) {
+    if (!bidFilters.isBidNotExpired(bidResponse)) {
       logWarn(`Ad id ${adId} has been expired`);
       events.emit(EXPIRED_RENDER, bidResponse);
       if (config.getConfig('auctionOptions')?.suppressExpiredRender) {
@@ -399,10 +390,8 @@ export const renderAdDirect = yieldsIf(() => !legacyRender, function renderAdDir
     if (!adId || !doc) {
       fail(AD_RENDER_FAILED_REASON.MISSING_DOC_OR_ADID, `missing ${adId ? 'doc' : 'adId'}`);
     } else {
-      getBidToRender(adId, true, (bidResponse) => {
-        bid = bidResponse;
-        handleRender({ renderFn, resizeFn, adId, options: { clickUrl: options?.clickThrough }, bidResponse, doc });
-      });
+      bid = auctionManager.findBidByAdId(adId)
+      handleRender({ renderFn, resizeFn, adId, options: { clickUrl: options?.clickThrough }, bidResponse: bid, doc });
     }
   } catch (e) {
     fail(EXCEPTION, e.message);

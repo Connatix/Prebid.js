@@ -1,4 +1,4 @@
-import { BANNER, VIDEO } from 'src/mediaTypes.js';
+import { BANNER, NATIVE, VIDEO } from 'src/mediaTypes.js';
 
 import { config } from 'src/config.js';
 import { expect } from 'chai';
@@ -81,6 +81,28 @@ describe('gumgumAdapter', function () {
         'bidfloor': '0.50'
       };
       expect(spec.isBidRequestValid(invalidBid)).to.equal(false);
+    });
+
+    it('should return true when native bid request with zone param is valid', function () {
+      const nativeBid = {
+        bidder: 'gumgum',
+        params: { zone: 'native123' },
+        adUnitCode: 'native-div',
+        mediaTypes: {
+          native: {
+            ortb: {
+              assets: [
+                { id: 1, required: 1, img: { type: 3, w: 150, h: 50 } },
+                { id: 2, required: 1, title: { len: 80 } }
+              ]
+            }
+          }
+        },
+        bidId: '30b31c1838de1f',
+        bidderRequestId: '22edbae2733bf7',
+        auctionId: '1d1a030790a476'
+      };
+      expect(spec.isBidRequestValid(nativeBid)).to.equal(true);
     });
 
     it('should return false if invalid request id is found', function () {
@@ -722,26 +744,6 @@ describe('gumgumAdapter', function () {
       expect(bidRequest.data).to.have.property('gpid');
       expect(bidRequest.data.gpid).to.equal('/17037559/jeusol/jeusol_D_1');
     });
-    it('should set ae value to 1 for PAAPI', function () {
-      const req = {
-        ...bidRequests[0],
-        ortb2Imp: {
-          ext: {
-            ae: 1,
-            data: {
-              adserver: {
-                name: 'test',
-                adslot: 123456
-              }
-            }
-          }
-        }
-      }
-      const bidRequest = spec.buildRequests([req])[0];
-      expect(bidRequest.data).to.have.property('ae');
-      expect(bidRequest.data.ae).to.equal(true);
-    });
-
     it('should set the global placement id (gpid) if in gpid property', function () {
       const gpid = 'abc123'
       const req = { ...bidRequests[0], ortb2Imp: { ext: { data: {}, gpid } } }
@@ -770,6 +772,48 @@ describe('gumgumAdapter', function () {
         const request = { ...bidRequests[0], params: { ...zoneParam, native: 2 } };
         const bidRequest = spec.buildRequests([request])[0];
         expect(bidRequest.data.pi).to.equal(5);
+      });
+      it('should set pi=5 and send nat param when mediaTypes.native.ortb is present', function () {
+        const nativeOrtb = {
+          assets: [
+            { id: 1, required: 1, img: { type: 3, w: 150, h: 50 } },
+            { id: 2, required: 1, title: { len: 80 } },
+            { id: 3, required: 1, data: { type: 1 } }
+          ]
+        };
+        const request = {
+          ...bidRequests[0],
+          params: zoneParam,
+          mediaTypes: { native: { ortb: nativeOrtb } }
+        };
+        const bidRequest = spec.buildRequests([request])[0];
+        expect(bidRequest.data.pi).to.equal(5);
+        expect(bidRequest.data.nat).to.equal(JSON.stringify(nativeOrtb));
+        expect(bidRequest.sizes).to.deep.equal([1, 1]);
+      });
+      it('should send ni param alongside nat when both mediaTypes.native and params.native are present', function () {
+        const nativeOrtb = {
+          assets: [{ id: 1, required: 1, title: { len: 80 } }]
+        };
+        const request = {
+          ...bidRequests[0],
+          params: { ...zoneParam, native: 42 },
+          mediaTypes: { native: { ortb: nativeOrtb } }
+        };
+        const bidRequest = spec.buildRequests([request])[0];
+        expect(bidRequest.data.pi).to.equal(5);
+        expect(bidRequest.data.nat).to.equal(JSON.stringify(nativeOrtb));
+        expect(bidRequest.data.ni).to.equal(42);
+      });
+      it('should set pi=5 for mediaTypes.native without ortb property', function () {
+        const request = {
+          ...bidRequests[0],
+          params: zoneParam,
+          mediaTypes: { native: {} }
+        };
+        const bidRequest = spec.buildRequests([request])[0];
+        expect(bidRequest.data.pi).to.equal(5);
+        expect(bidRequest.data).to.not.have.property('nat');
       });
       it('should set the correct pi param for video', function () {
         const request = { ...bidRequests[0], params: zoneParam, mediaTypes: vidMediaTypes };
@@ -1562,6 +1606,72 @@ describe('gumgumAdapter', function () {
     it('sets a vastXml property if mediaType is video', function () {
       const videoBidResponse = spec.interpretResponse({ body: serverResponse }, { ...bidRequest, data: { pi: 7 } })[0];
       expect(videoBidResponse.vastXml).to.exist;
+    });
+
+    it('sets mediaType to NATIVE for product 5 responses', function () {
+      const nativeBidResponse = spec.interpretResponse({ body: serverResponse }, { ...bidRequest, data: { pi: 5 } })[0];
+      expect(nativeBidResponse.mediaType).to.equal(NATIVE);
+    });
+
+    it('sets native.ortb property from native ADM JSON with native wrapper', function () {
+      const nativeAdm = {
+        native: {
+          ver: '1.2',
+          assets: [
+            { id: 1, img: { type: 3, url: 'https://cdn.example.com/img.jpg', w: 150, h: 50 } },
+            { id: 2, title: { text: 'Ad Title', len: 80 } }
+          ],
+          link: {
+            url: 'https://advertiser.com/landing',
+            clicktrackers: ['https://g2.gumgum.com/ad/click/enc/test']
+          },
+          eventtrackers: [
+            { event: 1, method: 1, url: 'https://g2.gumgum.com/ad/view/enc/test' }
+          ]
+        }
+      };
+      const nativeServerResponse = {
+        ...serverResponse,
+        ad: { ...serverResponse.ad, markup: JSON.stringify(nativeAdm) }
+      };
+      const nativeBidRequest = { ...bidRequest, data: { pi: 5 } };
+      const result = spec.interpretResponse({ body: nativeServerResponse }, nativeBidRequest)[0];
+      expect(result.mediaType).to.equal(NATIVE);
+      expect(result.native).to.be.an('object');
+      expect(result.native.ortb).to.deep.equal(nativeAdm.native);
+      expect(result.native.ortb.ver).to.equal('1.2');
+      expect(result.native.ortb.assets).to.have.length(2);
+      expect(result.native.ortb.link.url).to.equal('https://advertiser.com/landing');
+    });
+
+    it('sets native.ortb property from native ADM JSON without native wrapper', function () {
+      const nativeAdm = {
+        ver: '1.2',
+        assets: [
+          { id: 1, title: { text: 'Ad Title', len: 80 } }
+        ],
+        link: { url: 'https://advertiser.com/landing' }
+      };
+      const nativeServerResponse = {
+        ...serverResponse,
+        ad: { ...serverResponse.ad, markup: JSON.stringify(nativeAdm) }
+      };
+      const nativeBidRequest = { ...bidRequest, data: { pi: 5 } };
+      const result = spec.interpretResponse({ body: nativeServerResponse }, nativeBidRequest)[0];
+      expect(result.mediaType).to.equal(NATIVE);
+      expect(result.native).to.be.an('object');
+      expect(result.native.ortb).to.deep.equal(nativeAdm);
+    });
+
+    it('handles invalid native ADM JSON gracefully', function () {
+      const nativeServerResponse = {
+        ...serverResponse,
+        ad: { ...serverResponse.ad, markup: 'not-valid-json' }
+      };
+      const nativeBidRequest = { ...bidRequest, data: { pi: 5 } };
+      const result = spec.interpretResponse({ body: nativeServerResponse }, nativeBidRequest)[0];
+      expect(result.mediaType).to.equal(NATIVE);
+      expect(result.native).to.be.undefined;
     });
   })
   describe('getUserSyncs', function () {

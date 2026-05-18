@@ -9,7 +9,8 @@ import {
   getTargetingKeysBidLandscape
 } from 'test/fixtures/fixtures.js';
 import { auctionManager, newAuctionManager } from 'src/auctionManager.js';
-import { filters, newTargeting, targeting } from 'src/targeting.js';
+import { newTargeting, targeting } from 'src/targeting.js';
+import { bidFilters } from '../../../src/targeting/filters.js';
 import { config as configObj } from 'src/config.js';
 import * as ajaxLib from 'src/ajax.js';
 import * as auctionModule from 'src/auction.js';
@@ -26,7 +27,6 @@ import { mockFpdEnrichments } from '../../helpers/fpd.js';
 import { deepAccess, deepSetValue, generateUUID } from '../../../src/utils.js';
 import { getCreativeRenderer } from '../../../src/creativeRenderers.js';
 import { BID_STATUS, EVENTS, GRANULARITY_OPTIONS, PB_LOCATOR, TARGETING_KEYS } from 'src/constants.js';
-import { getBidToRender } from '../../../src/adRendering.js';
 import { getGlobal } from '../../../src/prebidGlobal.js';
 
 var assert = require('chai').assert;
@@ -213,7 +213,7 @@ describe('Unit: Prebid Module', function () {
   beforeEach(function () {
     sandbox = sinon.createSandbox();
     mockFpdEnrichments(sandbox);
-    bidExpiryStub = sinon.stub(filters, 'isBidNotExpired').callsFake(() => true);
+    bidExpiryStub = sinon.stub(bidFilters, 'isBidNotExpired').callsFake(() => true);
     configObj.setConfig({ useBidCache: true });
     resetAuctionState();
   });
@@ -1066,11 +1066,18 @@ describe('Unit: Prebid Module', function () {
       });
     });
 
-    it('should set googletag targeting keys to specific slot with customSlotMatching', function () {
+    it('should set googletag targeting keys to specific slot with customGptSlotMatching', function () {
       // same ad unit code but two differnt divs
-      // we make sure we can set targeting for a specific one with customSlotMatching
+      // we make sure we can set targeting for a specific one with customGptSlotMatching
 
-      pbjs.setConfig({ enableSendAllBids: false });
+      pbjs.setConfig({
+        enableSendAllBids: false,
+        customGptSlotMatching: (slot) => {
+          return (adUnitCode) => {
+            return slots[0].getSlotElementId() === slot.getSlotElementId();
+          };
+        }
+      });
 
       var slots = createSlotArrayScenario2();
 
@@ -1078,11 +1085,7 @@ describe('Unit: Prebid Module', function () {
       slots[1].spySetTargeting.resetHistory();
       window.googletag.pubads().setSlots(slots);
       pbjs.setConfig({ targetingControls: { allBidsCustomTargeting: true } });
-      pbjs.setTargetingForGPTAsync([config.adUnitCodes[0]], (slot) => {
-        return (adUnitCode) => {
-          return slots[0].getSlotElementId() === slot.getSlotElementId();
-        };
-      });
+      pbjs.setTargetingForGPTAsync([config.adUnitCodes[0]]);
 
       var expected = getTargetingKeys();
       expect(slots[0].spySetTargeting.args).to.deep.contain.members(expected);
@@ -3240,14 +3243,6 @@ describe('Unit: Prebid Module', function () {
       assert.ok(spyEventsOn.calledWith('bidWon', Function));
       events.on.restore();
     });
-
-    it('should emit event BID_ACCEPTED when invoked', function () {
-      var callback = sinon.spy();
-      pbjs.onEvent('bidAccepted', callback);
-      events.emit(EVENTS.BID_ACCEPTED);
-      sinon.assert.calledOnce(callback);
-    });
-
     describe('beforeRequestBids', function () {
       let bidRequestedHandler;
       let beforeRequestBidsHandler;
@@ -3727,7 +3722,6 @@ describe('Unit: Prebid Module', function () {
           'dealId': '1234',
           'width': 300,
           'height': 250,
-          'statusMessage': 'Bid available',
           'adId': '233bcbee889d46d',
           'creative_id': 29681110,
           'cpm': 10,
@@ -3808,7 +3802,7 @@ describe('Unit: Prebid Module', function () {
       auction.getBidsReceived = function() { return _bidsReceived };
 
       bidExpiryStub.restore();
-      bidExpiryStub = sinon.stub(filters, 'isBidNotExpired').callsFake((bid) => bid.cpm !== 13);
+      bidExpiryStub = sinon.stub(bidFilters, 'isBidNotExpired').callsFake((bid) => bid.cpm !== 13);
       const highestBid = pbjs.getHighestUnusedBidResponseForAdUnitCode('/19968336/header-bid-tag-0');
       expect(highestBid).to.deep.equal(_bidsReceived[2])
     })
@@ -3925,13 +3919,41 @@ describe('Unit: Prebid Module', function () {
 
       it('try and mark the bid object, but fail because we supplied the wrong adId', function () {
         pbjs.markWinningBidAsUsed({ adUnitCode, adId: 'miss' });
-        const markedBid = pbjs.getBidResponsesForAdUnitCode(adUnitCode).bids.find(
-          bid => bid.adId === winningBid.adId);
-
         expect(markedBid.status).to.not.equal(BID_STATUS.RENDERED);
       });
     });
   }
+
+  describe('getBidResponseByAdId', () => {
+    let bidResponse;
+    beforeEach(() => {
+      bidResponse = {
+        adId: 'mock-adid'
+      };
+      auction.getBidsReceived = () => [
+        bidResponse
+      ];
+    });
+
+    it('should return null when adId does not exist', () => {
+      sandbox.stub(utils, 'logWarn');
+      expect(pbjs.getBidResponseByAdId('missing')).to.not.exist;
+      sinon.assert.called(utils.logWarn);
+    });
+
+    it('should return the matching bid', () => {
+      expect(pbjs.getBidResponseByAdId('mock-adid')).to.equal(bidResponse);
+    });
+
+    it('should mark as used when markAsUsed = true', () => {
+      pbjs.getBidResponseByAdId('mock-adid', { markAsUsed: true });
+      expect(bidResponse.status).to.eql(BID_STATUS.RENDERED);
+    });
+
+    it('should not choke when markAsUsed = true, but the bid cannot be found', () => {
+      expect(pbjs.getBidResponseByAdId('missing', { markAsUsed: true })).to.not.exist;
+    });
+  });
 
   describe('setTargetingForAst', function () {
     let targeting;
