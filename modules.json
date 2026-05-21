@@ -50,6 +50,7 @@
   "openwebBidAdapter",
   "trustxBidAdapter",
   "magniteBidAdapter",
+  "nexx360BidAdapter",
   "consentManagementTcf",
   "consentManagementUsp",
   "consentManagementGpp",
