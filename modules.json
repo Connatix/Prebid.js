@@ -51,6 +51,7 @@
   "trustxBidAdapter",
   "magniteBidAdapter",
   "nexx360BidAdapter",
+  "cpmstarBidAdapter",
   "consentManagementTcf",
   "consentManagementUsp",
   "consentManagementGpp",
