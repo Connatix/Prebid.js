@@ -44,7 +44,7 @@ describe('Mtc bid adapter tests', () => {
         bidId: '4906582fc87d0c',
         bidderRequestId: '332fda16002dbe',
         auctionId: '98932591-c822-42e3-850e-4b3cf748d063',
-      }
+      };
     });
 
     it('We verify isBidRequestValid with incorrect tagid', () => {
@@ -72,7 +72,7 @@ describe('Mtc bid adapter tests', () => {
       expect(output).to.be.eql(null);
     });
     after(() => {
-      sandbox.restore()
+      sandbox.restore();
     });
   });
 
@@ -87,7 +87,7 @@ describe('Mtc bid adapter tests', () => {
       expect(typeof output.mtcId).to.be.eql('string');
     });
     after(() => {
-      sandbox.restore()
+      sandbox.restore();
     });
   });
 
@@ -102,7 +102,7 @@ describe('Mtc bid adapter tests', () => {
       expect(output).to.be.eql(null);
     });
     after(() => {
-      sandbox.restore()
+      sandbox.restore();
     });
   });
 
@@ -117,7 +117,7 @@ describe('Mtc bid adapter tests', () => {
       expect(output.mtcId).to.be.eql('5ad89a6e-7801-48e7-97bb-fe6f251f6cb4');
     });
     after(() => {
-      sandbox.restore()
+      sandbox.restore();
     });
   });
 
@@ -212,6 +212,12 @@ describe('Mtc bid adapter tests', () => {
           consentString: 'CPhdLUAPhdLUAAKAsAENCmCsAP_AAE7AAAqIJFNd_H__bW9r-f5_aft0eY1P9_r37uQzDhfNk-8F3L_W_LwX52E7NF36tq4KmR4ku1LBIUNlHMHUDUmwaokVryHsak2cpzNKJ7BEknMZOydYGF9vmxtj-QKY7_5_d3bx2D-t_9v239z3z81Xn3d53-_03LCdV5_9Dfn9fR_bc9KPt_58v8v8_____3_e__3_7997BIiAaADgAJYBnwEeAJXAXmAwQBj4DtgHcgPBAeKBIgAA.YAAAAAAAAAAA',
         }
       };
+      it('carries the bidderRequest on the request so interpretResponse can report the server auction', () => {
+        const displayBids = structuredClone(sampleBids);
+        displayBids[0].mediaTypes = { banner: { sizes: [[300, 250]] } };
+        const request = spec.buildRequests(displayBids, bidderRequest);
+        expect(request.bidderRequest).to.equal(bidderRequest);
+      });
       it('We perform a test with 2 display adunits', () => {
         const displayBids = structuredClone(sampleBids);
         displayBids[0].mediaTypes = {
@@ -283,7 +289,7 @@ describe('Mtc bid adapter tests', () => {
       }
     });
     after(() => {
-      sandbox.restore()
+      sandbox.restore();
     });
   });
 

@@ -7,7 +7,6 @@ import {
   BLIINK_ENDPOINT_COOKIE_SYNC_IFRAME,
   getEffectiveConnectionType,
   getUserIds,
-  GVL_ID,
 } from 'modules/bliinkBidAdapter.js';
 import * as utils from 'src/utils.js';
 import { config } from 'src/config.js';
@@ -580,7 +579,7 @@ const testsBuildBid = [
   {
     title: 'input data respect the output model for video',
     args: {
-      fn: buildBid(getConfigVideoBid('video'), getConfigCreativeVideo()),
+      fn: buildBid(getConfigVideoBid(), getConfigCreativeVideo()),
     },
     want: {
       requestId: getConfigBid('video').bidId,
@@ -603,7 +602,7 @@ const testsBuildBid = [
     args: {
       fn: buildBid(
         {
-          ...getConfigVideoBid('video'),
+          ...getConfigVideoBid(),
           creative: {
             video: {
               content: '<VAST></VAST>',
@@ -1112,7 +1111,6 @@ describe('BLIINK Adapter keywords & coppa true', function () {
     sinon.stub(utils, 'getDomLoadingDuration').returns(0);
     domLoadingDuration = '0';
     configStub = sinon.stub(config, 'getConfig');
-    configStub.withArgs('coppa').returns(true);
     querySelectorStub = sinon.stub(document, 'querySelector').returns(metaElement);
     originalTitle = document.title;
     document.title = '';
@@ -1130,6 +1128,7 @@ describe('BLIINK Adapter keywords & coppa true', function () {
       spec.buildRequests(
         [],
         Object.assign(getConfigBuildRequest('banner'), {
+          ortb2: { regs: { coppa: 1 } },
           gdprConsent: {
             gdprApplies: true,
             consentString: 'XXXX',
@@ -1193,8 +1192,4 @@ describe('getEffectiveConnectionType', () => {
       expect(result).to.equal('unsupported');
     });
   }
-});
-
-it('should expose gvlid', function () {
-  expect(spec.gvlid).to.equal(GVL_ID);
 });

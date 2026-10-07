@@ -48,7 +48,7 @@ describe('The video cache', function () {
         cache: {
           url: 'https://test.cache.url/endpoint'
         }
-      })
+      });
     });
 
     afterEach(function () {
@@ -75,7 +75,7 @@ describe('The video cache', function () {
       it('should use default when not specified', () => {
         store([], cb, getAjax);
         sinon.assert.calledWith(getAjax, undefined);
-      })
+      });
     });
 
     it('should execute the callback with a successful result when store() is called', function () {
@@ -240,7 +240,7 @@ describe('The video cache', function () {
         getAuctionStart() {
           return 1510852447530;
         }
-      }]))
+      }]));
       try {
         store(bids, function () { });
       } finally {
@@ -280,7 +280,7 @@ describe('The video cache', function () {
       it('should wait the duration of the batchTimeout and pass the correct batchSize if batched requests are enabled in the config', () => {
         const mockAfterBidAdded = function() {};
         let callback = null;
-        const mockTimeout = sinon.stub().callsFake((cb) => { callback = cb });
+        const mockTimeout = sinon.stub().callsFake((cb) => { callback = cb; });
 
         config.setConfig({
           cache: {
@@ -339,7 +339,7 @@ describe('The video cache', function () {
 
   describe('storeBatch', () => {
     let sandbox;
-    let err, cacheIds
+    let err, cacheIds;
     beforeEach(() => {
       err = null;
       cacheIds = [];
@@ -350,36 +350,37 @@ describe('The video cache', function () {
     afterEach(() => {
       sandbox.restore();
       config.resetConfig();
-    })
+    });
     it('should log an error when store replies with an error', () => {
       err = new Error('err');
       storeBatch([]);
       sinon.assert.called(utils.logError);
     });
     it('should not process returned uuids if they do not match the batch size', () => {
-      const el = { auctionInstance: {}, bidResponse: {}, afterBidAdded: sinon.stub() }
+      const el = { auctionInstance: {}, bidResponse: {}, afterBidAdded: sinon.stub() };
       const batch = [el, el];
-      cacheIds = [{ uuid: 'mock-id' }]
+      cacheIds = [{ uuid: 'mock-id' }];
       storeBatch(batch);
       expect(el.bidResponse.videoCacheKey).to.not.exist;
       sinon.assert.notCalled(batch[0].afterBidAdded);
       sinon.assert.called(utils.logError);
     });
-    it('should set bids\' videoCacheKey and vastUrl', () => {
+    it('should set bids\' videoCacheKey, vastUrl, and cacheUrl', () => {
       config.setConfig({
         cache: {
           url: 'mock-cache'
         }
-      })
+      });
       const el = { auctionInstance: { addBidReceived: sinon.stub() }, bidResponse: {}, afterBidAdded: sinon.stub() };
-      cacheIds = [{ uuid: 'mock-id' }]
+      cacheIds = [{ uuid: 'mock-id' }];
       storeBatch([el]);
       sinon.assert.match(el.bidResponse, {
         videoCacheKey: 'mock-id',
-        vastUrl: 'mock-cache?uuid=mock-id'
-      })
+        vastUrl: 'mock-cache?uuid=mock-id',
+        cacheUrl: 'mock-cache',
+      });
     });
-  })
+  });
 
   describe('updateVast', () => {
     let bidResponse;
@@ -393,7 +394,7 @@ describe('The video cache', function () {
       bidResponse.vastXml = 'mock';
       updateVast(bidResponse);
       expect(bidResponse.vastXml).to.eql('mock');
-    })
+    });
 
     it('should set vastXml with a wrapper around vastUrl', () => {
       updateVast(bidResponse);
@@ -441,7 +442,7 @@ describe('The video cache', function () {
         ]
       };
       updateVast(bidResponse);
-      expect(bidResponse.vastXml).to.eql('<VAST version="3.0"><Ad><Wrapper><AdSystem>prebid.org wrapper</AdSystem><VASTAdTagURI><![CDATA[my-mock-url.com]]></VASTAdTagURI><Creatives><Creative><Linear><TrackingEvents><Tracking event="start"><![CDATA[https://tracking.mydomain.com/start]]></Tracking><Tracking event="complete"><![CDATA[https://tracking.mydomain.com/complete]]></Tracking></TrackingEvents></Linear></Creative></Creatives></Wrapper></Ad></VAST>')
+      expect(bidResponse.vastXml).to.eql('<VAST version="3.0"><Ad><Wrapper><AdSystem>prebid.org wrapper</AdSystem><VASTAdTagURI><![CDATA[my-mock-url.com]]></VASTAdTagURI><Creatives><Creative><Linear><TrackingEvents><Tracking event="start"><![CDATA[https://tracking.mydomain.com/start]]></Tracking><Tracking event="complete"><![CDATA[https://tracking.mydomain.com/complete]]></Tracking></TrackingEvents></Linear></Creative></Creatives></Wrapper></Ad></VAST>');
     });
 
     it('should include all tracker types together', () => {
@@ -454,8 +455,60 @@ describe('The video cache', function () {
       };
       updateVast(bidResponse);
       expect(bidResponse.vastXml).to.eql('<VAST version="3.0"><Ad><Wrapper><AdSystem>prebid.org wrapper</AdSystem><VASTAdTagURI><![CDATA[my-mock-url.com]]></VASTAdTagURI><Impression><![CDATA[imptracker.com]]></Impression><Error><![CDATA[https://error.mydomain.com/error]]></Error><Creatives><Creative><Linear><TrackingEvents><Tracking event="start"><![CDATA[https://tracking.mydomain.com/start]]></Tracking></TrackingEvents></Linear></Creative></Creatives></Wrapper></Ad></VAST>');
-    })
-  })
+    });
+
+    // The wrapper is built by string interpolation, so tracker values that contain XML syntax must
+    // not be able to close the element they are placed in.
+    describe('tracker values containing XML syntax', () => {
+      // ']]>' closes a CDATA section; the text after it would otherwise be parsed as markup.
+      const BREAKOUT = 'https://tracker.example/a]]></Impression><Impression><![CDATA[https://evil.example/pwn';
+
+      function parsed() {
+        updateVast(bidResponse);
+        const doc = new DOMParser().parseFromString(bidResponse.vastXml, 'text/xml');
+        expect(doc.getElementsByTagName('parsererror')).to.have.lengthOf(0);
+        return doc;
+      }
+
+      it('keeps an impression tracker in a single Impression element', () => {
+        bidResponse.vastTrackers = { impression: [BREAKOUT] };
+        const impressions = parsed().getElementsByTagName('Impression');
+        expect(impressions).to.have.lengthOf(1);
+        expect(impressions[0].textContent).to.equal(BREAKOUT);
+      });
+
+      it('keeps an error tracker in a single Error element', () => {
+        bidResponse.vastTrackers = { error: [BREAKOUT] };
+        const errors = parsed().getElementsByTagName('Error');
+        expect(errors).to.have.lengthOf(1);
+        expect(errors[0].textContent).to.equal(BREAKOUT);
+      });
+
+      it('keeps a tracking event url in a single Tracking element', () => {
+        bidResponse.vastTrackers = { trackingEvents: [{ event: 'start', url: BREAKOUT }] };
+        const tracking = parsed().getElementsByTagName('Tracking');
+        expect(tracking).to.have.lengthOf(1);
+        expect(tracking[0].textContent).to.equal(BREAKOUT);
+      });
+
+      it('does not let a tracking event name add attributes to Tracking', () => {
+        const event = 'start" foo="bar';
+        bidResponse.vastTrackers = { trackingEvents: [{ event, url: 'https://tracker.example/s' }] };
+        const tracking = parsed().getElementsByTagName('Tracking')[0];
+        expect(tracking.getAttributeNames()).to.eql(['event']);
+        expect(tracking.getAttribute('event')).to.equal(event);
+      });
+
+      it('keeps the vast url in a single VASTAdTagURI element', () => {
+        bidResponse.vastUrl = 'https://bidder.example/v.xml]]></VASTAdTagURI><Impression><![CDATA[https://evil.example/x';
+        const doc = parsed();
+        const uris = doc.getElementsByTagName('VASTAdTagURI');
+        expect(uris).to.have.lengthOf(1);
+        expect(uris[0].textContent).to.equal(bidResponse.vastUrl);
+        expect(doc.getElementsByTagName('Impression')).to.have.lengthOf(0);
+      });
+    });
+  });
 
   describe('local video cache', function() {
     afterEach(function () {
@@ -499,7 +552,7 @@ describe('The video cache', function () {
         };
         addBidReceived = sinon.stub();
         afterBidAdded = sinon.stub();
-      })
+      });
 
       function runCaching() {
         return handleVideoBidCaching({
@@ -518,12 +571,25 @@ describe('The video cache', function () {
         sinon.assert.calledWith(addBidReceived, bidResponse);
         sinon.assert.called(afterBidAdded);
       });
+      it('provides a local VAST URL to an outstream renderer that requires one', function () {
+        bidResponse.mediaType = 'video';
+        bidResponse.renderer = { requiresVastUrl: true };
+        handleVideoBidCaching({
+          bidResponse,
+          auctionInstance: { addBidReceived },
+          afterBidAdded,
+          videoMediaType: { context: 'outstream' }
+        });
+        expect(bidResponse.vastUrl.startsWith('blob:http://')).to.be.true;
+        sinon.assert.calledWith(addBidReceived, bidResponse);
+        sinon.assert.calledOnce(afterBidAdded);
+      });
       describe('when prebid cache hooks are set up', () => {
         let cacheHook;
         before(() => {
           cacheHook = sinon.stub().callsFake((next, ...args) => {
             return next(...args);
-          })
+          });
           callPrebidCache.before(cacheHook);
         });
         after(() => {
@@ -532,9 +598,9 @@ describe('The video cache', function () {
         it('they should run', () => {
           runCaching();
           sinon.assert.called(cacheHook);
-        })
-      })
-    })
+        });
+      });
+    });
 
     it('calls prebid cache path when remote cache is enabled', function () {
       config.setConfig({
@@ -557,6 +623,129 @@ describe('The video cache', function () {
       sinon.assert.calledOnce(storeStub);
     });
 
+    it('caches an XML-only outstream bid when its renderer requires a VAST URL', function () {
+      config.setConfig({ cache: { url: 'https://test.cache.url/endpoint' } });
+      const storeStub = sandbox.stub(_internal, 'store').callsFake(() => {});
+
+      handleVideoBidCaching({
+        bidResponse: {
+          mediaType: 'video',
+          vastXml: '<VAST version="3.0"></VAST>',
+          renderer: { requiresVastUrl: true }
+        },
+        auctionInstance: {},
+        afterBidAdded: sinon.stub(),
+        videoMediaType: { context: 'outstream' }
+      });
+
+      sinon.assert.calledOnce(storeStub);
+    });
+
+    it('uses the selected safe renderer requirement when both renderer types are present', function () {
+      config.setConfig({ cache: { url: 'https://test.cache.url/endpoint' } });
+      const storeStub = sandbox.stub(_internal, 'store').callsFake(() => {});
+      const bidResponse = {
+        mediaType: 'video',
+        vastXml: '<VAST version="3.0"></VAST>',
+        renderer: { requiresVastUrl: false },
+        safeRenderer: { url: 'https://player.example/safe.js', requiresVastUrl: true }
+      };
+
+      handleVideoBidCaching({
+        bidResponse,
+        auctionInstance: {},
+        afterBidAdded: sinon.stub(),
+        videoMediaType: { context: 'outstream' }
+      });
+
+      sinon.assert.calledOnce(storeStub);
+    });
+
+    it('does not follow an overridden top window renderer requirement', function () {
+      config.setConfig({ cache: { url: 'https://test.cache.url/endpoint' } });
+      const storeStub = sandbox.stub(_internal, 'store');
+      const addBidReceived = sinon.stub();
+      const bidResponse = {
+        mediaType: 'video',
+        vastXml: '<VAST version="3.0"></VAST>',
+        renderer: { requiresVastUrl: true },
+        safeRenderer: { url: 'https://player.example/safe.js', requiresVastUrl: false }
+      };
+
+      handleVideoBidCaching({
+        bidResponse,
+        auctionInstance: { addBidReceived },
+        afterBidAdded: sinon.stub(),
+        videoMediaType: { context: 'outstream' }
+      });
+
+      sinon.assert.notCalled(storeStub);
+      sinon.assert.calledWith(addBidReceived, bidResponse);
+    });
+
+    it('does not cache outstream bids when the renderer already has a VAST URL', function () {
+      config.setConfig({ cache: { url: 'https://test.cache.url/endpoint' } });
+      const storeStub = sandbox.stub(_internal, 'store');
+      const addBidReceived = sinon.stub();
+      const bidResponse = {
+        mediaType: 'video',
+        vastUrl: 'https://bidder.example/vast',
+        renderer: { requiresVastUrl: true }
+      };
+
+      handleVideoBidCaching({
+        bidResponse,
+        auctionInstance: { addBidReceived },
+        afterBidAdded: sinon.stub(),
+        videoMediaType: { context: 'outstream' }
+      });
+
+      sinon.assert.notCalled(storeStub);
+      sinon.assert.calledWith(addBidReceived, bidResponse);
+    });
+
+    it('does not cache XML-only outstream bids for renderers that accept inline XML', function () {
+      config.setConfig({ cache: { url: 'https://test.cache.url/endpoint' } });
+      const storeStub = sandbox.stub(_internal, 'store');
+      const addBidReceived = sinon.stub();
+      const bidResponse = {
+        mediaType: 'video',
+        vastXml: '<VAST version="3.0"></VAST>',
+        renderer: { requiresVastUrl: false }
+      };
+
+      handleVideoBidCaching({
+        bidResponse,
+        auctionInstance: { addBidReceived },
+        afterBidAdded: sinon.stub(),
+        videoMediaType: { context: 'outstream' }
+      });
+
+      sinon.assert.notCalled(storeStub);
+      sinon.assert.calledWith(addBidReceived, bidResponse);
+    });
+
+    it('discards XML-only outstream bids when the renderer requires a URL and caching is disabled', function () {
+      const logErrorStub = sandbox.stub(utils, 'logError');
+      const addBidReceived = sinon.stub();
+      const afterBidAdded = sinon.stub();
+
+      handleVideoBidCaching({
+        bidResponse: {
+          mediaType: 'video',
+          vastXml: '<VAST version="3.0"></VAST>',
+          renderer: { requiresVastUrl: true }
+        },
+        auctionInstance: { addBidReceived },
+        afterBidAdded,
+        videoMediaType: { context: 'outstream' }
+      });
+
+      sinon.assert.calledOnce(logErrorStub);
+      sinon.assert.notCalled(addBidReceived);
+      sinon.assert.calledOnce(afterBidAdded);
+    });
+
     it('logs error when bid has videoCacheKey but no vastUrl', function () {
       config.setConfig({
         cache: {
@@ -567,15 +756,17 @@ describe('The video cache', function () {
       const bidResponse = {
         videoCacheKey: 'existing-cache-key'
       };
+      const afterBidAdded = sinon.stub();
 
       handleVideoBidCaching({
         bidResponse,
         auctionInstance: {},
-        afterBidAdded: sinon.stub(),
+        afterBidAdded,
         videoMediaType: { context: 'instream' }
       });
 
       sinon.assert.calledOnce(logErrorStub);
+      sinon.assert.calledOnce(afterBidAdded);
     });
 
     it('adds bids to auction otherwise', () => {
@@ -587,32 +778,22 @@ describe('The video cache', function () {
         },
         afterBidAdded: sinon.stub(),
         videoMediaType: { context: 'outstream' }
-      }
+      };
       handleVideoBidCaching(request);
       sinon.assert.notCalled(logErrorStub);
       expect(request.bidResponse.videoCacheKey).to.not.exist;
       sinon.assert.calledWith(request.auctionInstance.addBidReceived, request.bidResponse);
       sinon.assert.called(request.afterBidAdded);
-    })
+    });
   });
 });
 
 describe('The getCache function', function () {
-  beforeEach(function () {
-    config.setConfig({
-      cache: {
-        url: 'https://test.cache.url/endpoint'
-      }
-    })
-  });
-
-  afterEach(function () {
-    config.resetConfig();
-  });
+  const CACHE_URL = 'https://test.cache.url/endpoint';
 
   it('should return the expected URL', function () {
     const uuid = 'c488b101-af3e-4a99-b538-00423e5a3371';
-    const url = getCacheUrl(uuid);
+    const url = getCacheUrl(CACHE_URL, uuid);
     url.should.equal(`https://test.cache.url/endpoint?uuid=${uuid}`);
   });
-})
+});
