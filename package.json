@@ -23,6 +23,7 @@
     "test": "gulp test",
     "lint": "gulp lint",
     "build:connatix": "gulp build-bundle-prod --disable NATIVE --modules=modules.json",
+    "build:connatix:dev": "gulp build-bundle-dev --disable NATIVE --modules=modules.json",
     "build:connatix:fandom": "gulp build-bundle-prod --disable NATIVE --modules=fandom-modules.json",
     "build:connatix:bdg": "gulp build-bundle-prod --disable NATIVE --modules=bdg-modules.json"
   },
