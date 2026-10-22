@@ -57,6 +57,7 @@
   "gumgumBidAdapter",
   "richaudienceBidAdapter",
   "scaliburBidAdapter",
+  "inmobiBidAdapter",
   "msftBidAdapter",
   "consentManagementTcf",
   "consentManagementUsp",
