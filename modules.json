@@ -58,6 +58,7 @@
   "richaudienceBidAdapter",
   "scaliburBidAdapter",
   "inmobiBidAdapter",
+  "apsBidAdapter",
   "msftBidAdapter",
   "consentManagementTcf",
   "consentManagementUsp",
