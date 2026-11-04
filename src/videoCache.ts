@@ -9,14 +9,16 @@
  * This trickery helps integrate with ad servers, which set character limits on request params.
  */
 
-import { ajaxBuilder } from './ajax.js';
+import { qualifiedAjaxBuilder } from './ajax.js';
 import { config } from './config.js';
 import { auctionManager } from './auctionManager.js';
 import { generateUUID, logError, logWarn } from './utils.js';
+import { attributeValue, cdata } from './utils/xml.js';
 import { addBidToAuction } from './auction.js';
 import { hook } from './hook.js';
 import { OUTSTREAM } from './video.js';
 import type { AudioBidResponse, VideoBid, VideoBidResponse } from "./bidfactory.ts";
+import { MODULE_TYPE_PREBID } from "./activities/modules.ts";
 
 /**
  * Might be useful to be configurable in the future
@@ -44,25 +46,21 @@ export interface VastTrackers {
  * @return A VAST URL which loads XML from the given URI.
  */
 function wrapURI(uri: string, trackers?: VastTrackers) {
-  // Technically, this is vulnerable to cross-script injection by sketchy vastUrl bids.
-  // We could make sure it's a valid URI... but since we're loading VAST XML from the
-  // URL they provide anyway, that's probably not a big deal.
-
   // Build Impression tags
   const impressions = trackers?.impression?.length
-    ? trackers.impression.map(trk => `<Impression><![CDATA[${trk}]]></Impression>`).join('')
+    ? trackers.impression.map(trk => `<Impression>${cdata(trk)}</Impression>`).join('')
     : '';
 
   // Build Error tags
   const errors = trackers?.error?.length
-    ? trackers.error.map(trk => `<Error><![CDATA[${trk}]]></Error>`).join('')
+    ? trackers.error.map(trk => `<Error>${cdata(trk)}</Error>`).join('')
     : '';
 
   // Build TrackingEvents for Linear creative
   let trackingEventsXml = '';
   if (trackers?.trackingEvents?.length) {
     const trackingTags = trackers.trackingEvents
-      .map(({ event, url }) => `<Tracking event="${event}"><![CDATA[${url}]]></Tracking>`)
+      .map(({ event, url }) => `<Tracking event="${attributeValue(event)}">${cdata(url)}</Tracking>`)
       .join('');
     trackingEventsXml = `<Creative><Linear><TrackingEvents>${trackingTags}</TrackingEvents></Linear></Creative>`;
   }
@@ -71,7 +69,7 @@ function wrapURI(uri: string, trackers?: VastTrackers) {
     '<Ad>' +
     '<Wrapper>' +
     '<AdSystem>prebid.org wrapper</AdSystem>' +
-    '<VASTAdTagURI><![CDATA[' + uri + ']]></VASTAdTagURI>' +
+    '<VASTAdTagURI>' + cdata(uri) + '</VASTAdTagURI>' +
     impressions +
     errors +
     '<Creatives>' + trackingEventsXml + '</Creatives>' +
@@ -96,18 +94,15 @@ declare module './bidfactory' {
      * The cache key that was used for this bid.
      */
     videoCacheKey?: string;
+    /**
+     * URL of the cache service Prebid used to cache this bid (`getConfig('cache.url')`). Undefined if Prebid did
+     * not cache this bid.
+     */
+    cacheUrl?: string;
   }
 }
 
-export interface CacheConfig {
-  /**
-   * The URL of the Prebid Cache server endpoint where VAST creatives will be sent.
-   */
-  url: string;
-  /**
-   * Flag determining whether to locally save VAST XML as a blob
-   */
-  useLocal?: boolean;
+interface BaseCacheConfig {
   /**
    * When true, allows VAST XML-only bids to pass even without cache.url or cache.useLocal.
    */
@@ -138,6 +133,30 @@ export interface CacheConfig {
    */
   batchTimeout?: number;
 }
+
+export interface RemoteCacheConfig extends BaseCacheConfig {
+  /**
+   * The URL of the Prebid Cache server endpoint where VAST creatives will be sent.
+   */
+  url: string;
+  /**
+   * Flag determining whether to locally save VAST XML as a blob
+   */
+  useLocal?: false;
+}
+
+export interface LocalCacheConfig extends BaseCacheConfig {
+  /**
+   * The URL of the Prebid Cache server endpoint. Not used when `useLocal` is true.
+   */
+  url?: string;
+  /**
+   * Flag determining whether to locally save VAST XML as a blob
+   */
+  useLocal: true;
+}
+
+export type CacheConfig = RemoteCacheConfig | LocalCacheConfig;
 
 declare module './config' {
   interface Config {
@@ -200,7 +219,7 @@ function shimStorageCallback(done: VideoCacheStoreCallback) {
     success: function (responseBody) {
       let ids;
       try {
-        ids = JSON.parse(responseBody).responses
+        ids = JSON.parse(responseBody).responses;
       } catch (e) {
         done(e, []);
         return;
@@ -215,7 +234,7 @@ function shimStorageCallback(done: VideoCacheStoreCallback) {
     error: function (statusText, responseBody) {
       done(new Error(`Error storing video ad in the cache: ${statusText}: ${JSON.stringify(responseBody)}`), []);
     }
-  }
+  };
 }
 
 /**
@@ -226,7 +245,7 @@ function shimStorageCallback(done: VideoCacheStoreCallback) {
  * @param getAjax
  * the data has been stored in the cache.
  */
-export function store(bids: VideoBid[], done?: VideoCacheStoreCallback, getAjax = ajaxBuilder) {
+export function store(bids: VideoBid[], done: VideoCacheStoreCallback = (_error, _uuids) => {}, getAjax = (timeout) => qualifiedAjaxBuilder(MODULE_TYPE_PREBID, 'cache', timeout)) {
   const requestData = {
     puts: bids.map(bid => toStorageRequest(bid))
   };
@@ -237,8 +256,17 @@ export function store(bids: VideoBid[], done?: VideoCacheStoreCallback, getAjax 
   });
 }
 
-export function getCacheUrl(id) {
-  return `${config.getConfig('cache.url')}?uuid=${id}`;
+export function getCacheUrl(cacheUrl, id) {
+  let url;
+  try {
+    url = new URL(cacheUrl, document.baseURI);
+  } catch (e) {
+    return `${cacheUrl}?uuid=${encodeURIComponent(id)}`;
+  }
+  const params = url.search.replace(/^\?/, '').split('&').filter(param => param && param.split('=')[0] !== 'uuid');
+  params.push(`uuid=${encodeURIComponent(id)}`);
+  url.search = `?${params.join('&')}`;
+  return url.toString();
 }
 
 export const storeLocally = (bid) => {
@@ -270,7 +298,19 @@ export function handleVideoBidCaching({
     ignoreBidderCacheKey
   } = config.getConfig('cache') || {};
 
-  const shouldUseCache = (useLocal || cacheUrl) && (useCacheKey || context !== OUTSTREAM);
+  const activeRendererRequiresVastUrl = bidResponse.safeRenderer?.url
+    ? bidResponse.safeRenderer.requiresVastUrl
+    : bidResponse.renderer?.requiresVastUrl;
+  const rendererNeedsVastUrl = bidResponse.mediaType === 'video' && context === OUTSTREAM &&
+    activeRendererRequiresVastUrl === true && !bidResponse.vastUrl;
+  const cacheDisabled = bidResponse.mediaType === 'video' && videoMediaType?.cache === false;
+  if (rendererNeedsVastUrl && (!bidResponse.vastXml || cacheDisabled || (!useLocal && !cacheUrl))) {
+    logError('Video renderer requires vastUrl, but this bid has no VAST XML or video cache is disabled');
+    afterBidAdded();
+    return;
+  }
+
+  const shouldUseCache = !cacheDisabled && (useLocal || cacheUrl) && (useCacheKey || context !== OUTSTREAM || rendererNeedsVastUrl);
   const shouldStoreBid = !bidResponse.videoCacheKey || ignoreBidderCacheKey;
 
   if (shouldUseCache && shouldStoreBid) {
@@ -279,6 +319,7 @@ export function handleVideoBidCaching({
   }
   if (shouldUseCache && !shouldStoreBid && !bidResponse.vastUrl) {
     logError('videoCacheKey specified but not required vastUrl for video bid');
+    afterBidAdded();
     return;
   }
   addBidToAuction(auctionInstance, bidResponse);
@@ -287,7 +328,7 @@ export function handleVideoBidCaching({
 
 export const updateVast = hook('sync', function (bidResponse: VideoBidResponse | AudioBidResponse) {
   if (!bidResponse.vastXml && bidResponse.vastUrl) {
-    bidResponse.vastXml = wrapURI(bidResponse.vastUrl, (bidResponse as VideoBidResponse).vastTrackers)
+    bidResponse.vastXml = wrapURI(bidResponse.vastUrl, (bidResponse as VideoBidResponse).vastTrackers);
   }
 }, 'updateVast');
 
@@ -296,29 +337,34 @@ const assignVastUrlAndCacheId = (bid, vastUrl, videoCacheKey?) => {
   if (!bid.vastUrl) {
     bid.vastUrl = vastUrl;
   }
-}
+};
 
 export const _internal = {
   store
-}
+};
 
 export function storeBatch(batch) {
-  const bids = batch.map(entry => entry.bidResponse)
+  const bids = batch.map(entry => entry.bidResponse);
   function err(msg) {
-    logError(`Failed to save to the video cache: ${msg}. Video bids will be discarded:`, bids)
+    logError(`Failed to save to the video cache: ${msg}. Video bids will be discarded:`, bids);
   }
+  const cacheUrl = config.getConfig('cache.url');
   _internal.store(bids, function (error, cacheIds) {
     if (error) {
-      err(error)
+      err(error);
+      batch.forEach(({ afterBidAdded }) => afterBidAdded());
     } else if (batch.length !== cacheIds.length) {
-      logError(`expected ${batch.length} cache IDs, got ${cacheIds.length} instead`)
+      logError(`expected ${batch.length} cache IDs, got ${cacheIds.length} instead`);
+      batch.forEach(({ afterBidAdded }) => afterBidAdded());
     } else {
       cacheIds.forEach((cacheId, i) => {
         const { auctionInstance, bidResponse, afterBidAdded } = batch[i];
-        if (cacheId.uuid === '') {
-          logWarn(`Supplied video cache key was already in use by Prebid Cache; caching attempt was rejected. Video bid must be discarded.`);
+        if (cacheId == null || typeof cacheId.uuid !== 'string' || cacheId.uuid === '') {
+          logWarn(`Supplied video cache key was rejected or missing from Prebid Cache. Video bid must be discarded.`);
+          afterBidAdded();
         } else {
-          assignVastUrlAndCacheId(bidResponse, getCacheUrl(cacheId.uuid), cacheId.uuid);
+          bidResponse.cacheUrl = cacheUrl;
+          assignVastUrlAndCacheId(bidResponse, getCacheUrl(cacheUrl, cacheId.uuid), cacheId.uuid);
           addBidToAuction(auctionInstance, bidResponse);
           afterBidAdded();
         }
@@ -342,12 +388,12 @@ if (FEATURES.VIDEO || FEATURES.AUDIO) {
       cleanupHandler = auctionManager.onExpiry((auction) => {
         auction.getBidsReceived()
           .forEach((bid) => {
-            const vastUrl = vastLocalCache.get(bid.videoCacheKey)
+            const vastUrl = vastLocalCache.get(bid.videoCacheKey);
             if (vastUrl && vastUrl.startsWith('blob')) {
               URL.revokeObjectURL(vastUrl);
             }
             vastLocalCache.delete(bid.videoCacheKey);
-          })
+          });
       });
     }
   });
@@ -356,6 +402,7 @@ if (FEATURES.VIDEO || FEATURES.AUDIO) {
 export const batchingCache = (timeout = setTimeout, cache = storeBatch) => {
   let batches = [[]];
   let debouncing = false;
+  // Preserve synchronous dispatch when batching is not delayed.
   const noTimeout = cb => cb();
 
   return function (auctionInstance, bidResponse, afterBidAdded) {

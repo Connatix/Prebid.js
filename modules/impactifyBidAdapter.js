@@ -2,7 +2,7 @@
 import { deepAccess, deepSetValue, getWinDimensions, isPlainObject, getWindowTop } from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { config } from '../src/config.js';
-import { ajax } from '../src/ajax.js';
+import { noCredsAjax as ajax } from '../src/ajax.js';
 import { getStorageManager } from '../src/storageManager.js';
 import { isViewabilityMeasurable, getViewability } from '../libraries/percentInView/percentInView.js';
 
@@ -182,7 +182,9 @@ const helpers = {
     const video = deepAccess(bid, 'mediaTypes.video');
     if (!video) return;
 
-    const playerSize = video.playerSize || bid.sizes?.[0];
+    const playerSize = Array.isArray(video.playerSize?.[0])
+      ? video.playerSize[0]
+      : video.playerSize || bid.sizes?.[0];
     const resolvedPlayerSize = playerSize && playerSize.length === 2
       ? playerSize
       : [DEFAULT_VIDEO_WIDTH, DEFAULT_VIDEO_HEIGHT];
@@ -212,7 +214,7 @@ const helpers = {
     return STORAGE.localStorageIsEnabled(false) ? STORAGE.getDataFromLocalStorage(STORAGE_KEY, false) : '';
   }
 
-}
+};
 
 /**
  * Create an OpenRTB formated object from prebid payload
@@ -226,6 +228,7 @@ function createOpenRtbRequest(validBidRequests, bidderRequest) {
     id: bidderRequest?.bidderRequestId,
     validBidRequests,
     cur: [DEFAULT_CURRENCY],
+    tmax: bidderRequest?.timeout > 0 ? bidderRequest.timeout : 400,
     imp: [],
     source: { tid: bidderRequest?.ortb2?.source?.tid },
     ext: {
@@ -274,12 +277,12 @@ function createOpenRtbRequest(validBidRequests, bidderRequest) {
   deepSetValue(request, 'site.publisher.id', accountId);
 
   // Handle privacy settings for GDPR/CCPA/COPPA
-  let gdprApplies = 0;
   if (bidderRequest?.gdprConsent) {
-    if (typeof bidderRequest.gdprConsent.gdprApplies === 'boolean') gdprApplies = bidderRequest.gdprConsent.gdprApplies ? 1 : 0;
+    if (typeof bidderRequest.gdprConsent.gdprApplies === 'boolean') {
+      deepSetValue(request, 'regs.ext.gdpr', bidderRequest.gdprConsent.gdprApplies ? 1 : 0);
+    }
     deepSetValue(request, 'user.ext.consent', bidderRequest.gdprConsent.consentString);
   }
-  deepSetValue(request, 'regs.ext.gdpr', gdprApplies);
 
   if (GET_CONFIG('coppa') === true) deepSetValue(request, 'regs.coppa', 1);
 
@@ -301,18 +304,18 @@ function createOpenRtbRequest(validBidRequests, bidderRequest) {
     if (bannerObj) {
       imp.banner = {
         ...helpers.createOrtbImpBannerObj(bid, bannerObj)
-      }
+      };
     }
 
     if (videoObj) {
       imp.video = {
         ...helpers.createOrtbImpVideoObj(bid)
-      }
+      };
     }
 
     if (typeof bid.getFloor === 'function') {
       const floor = helpers.getFloor(bid);
-      if (floor) {
+      if (floor !== null) {
         imp.bidfloor = floor;
       }
     }
@@ -358,7 +361,7 @@ export const spec = {
   buildRequests: function (validBidRequests, bidderRequest) {
     // Create a clean openRTB request
     const request = createOpenRtbRequest(validBidRequests, bidderRequest);
-    const options = {}
+    const options = {};
 
     return {
       method: 'POST',
@@ -470,12 +473,11 @@ export const spec = {
     }
 
     let params = '';
-    if (gdprConsent && typeof gdprConsent.consentString === 'string') {
-      if (typeof gdprConsent.gdprApplies === 'boolean') {
-        params += `?gdpr=${Number(gdprConsent.gdprApplies)}&gdpr_consent=${gdprConsent.consentString}`;
-      } else {
-        params += `?gdpr_consent=${gdprConsent.consentString}`;
-      }
+    if (typeof gdprConsent?.gdprApplies === 'boolean') {
+      params += `?gdpr=${Number(gdprConsent.gdprApplies)}`;
+    }
+    if (typeof gdprConsent?.consentString === 'string') {
+      params += `${params ? '&' : '?'}gdpr_consent=${gdprConsent.consentString}`;
     }
 
     if (uspConsent) {

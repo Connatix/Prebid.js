@@ -7,7 +7,6 @@ import {
   BLIINK_ENDPOINT_COOKIE_SYNC_IFRAME,
   getEffectiveConnectionType,
   getUserIds,
-  GVL_ID,
 } from 'modules/bliinkBidAdapter.js';
 import * as utils from 'src/utils.js';
 import { config } from 'src/config.js';
@@ -32,9 +31,6 @@ import { config } from 'src/config.js';
  * ortb2Imp: {ext: {data: {pbadslot: string}}}}}
  */
 
-const w = (utils.canAccessWindowTop()) ? utils.getWindowTop() : utils.getWindowSelf();
-const connectionType = getEffectiveConnectionType();
-let domLoadingDuration = utils.getDomLoadingDuration(w).toString();
 const getConfigBid = (placement) => {
   return {
     adUnitCode: '/19968336/test',
@@ -61,8 +57,6 @@ const getConfigBid = (placement) => {
         },
       },
     },
-    domLoadingDuration,
-    ect: connectionType,
     params: {
       placement: placement,
       tagId: '14f30eca-85d2-11e8-9eed-0242ac120007',
@@ -214,12 +208,14 @@ const getConfigInterpretResponse = (noAd = false) => {
       ...getConfigCreative(),
       mode: 'ad',
       transactionId: '2def0c5b2a7f6e',
-      token:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MjgxNzA4MzEsImlhdCI6MTYyNzU2NjAzMSwiaXNzIjoiYmxpaW5rIiwiZGF0YSI6eyJ0eXBlIjoiYWQtc2VydmVyIiwidHJhbnNhY3Rpb25JZCI6IjM1YmU1NDNjLTNkZTQtNGQ1Yy04N2NjLWIzYzEyOGZiYzU0MCIsIm5ldHdvcmtJZCI6MjEsInNpdGVJZCI6NTksInRhZ0lkIjo1OSwiY29va2llSWQiOiJjNGU4MWVhOS1jMjhmLTQwZDItODY1ZC1hNjQzZjE1OTcyZjUiLCJldmVudElkIjozLCJ0YXJnZXRpbmciOnsicGxhdGZvcm0iOiJXZWJzaXRlIiwiaXAiOiI3OC4xMjIuNzUuNzIiLCJ0aW1lIjoxNjI3NTY2MDMxLCJsb2NhdGlvbiI6eyJsYXRpdHVkZSI6NDguOTczOSwibG9uZ2l0dWRlIjozLjMxMTMsInJlZ2lvbiI6IkhERiIsImNvdW50cnkiOiJGUiIsImNpdHkiOiJTYXVsY2hlcnkiLCJ6aXBDb2RlIjoiMDIzMTAiLCJkZXBhcnRtZW50IjoiMDIifSwiY2l0eSI6IlNhdWxjaGVyeSIsImNvdW50cnkiOiJGUiIsImRldmljZU9zIjoibWFjT1MiLCJkZXZpY2VQbGF0Zm9ybSI6IldlYnNpdGUiLCJyYXdVc2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvOTEuMC40NDcyLjEyNCBTYWZhcmkvNTM3LjM2In0sImdkcHIiOnsiaGFzQ29uc2VudCI6dHJ1ZX0sIndpbiI6ZmFsc2UsImFkSWQiOjU2NDgsImFkdmVydGlzZXJJZCI6MSwiY2FtcGFpZ25JZCI6MSwiY3JlYXRpdmVJZCI6MjgyNSwiZXJyb3IiOmZhbHNlfX0.-UefQH4G0k-RJGemBYffs-KL7EEwma2Wuwgk2xnpij8',
+      token: SAMPLE_BID_EVENT_TOKEN,
     },
     headers: {},
   };
 };
+
+const SAMPLE_BID_EVENT_TOKEN = 'sample-bid-event-token';
+const SAMPLE_VAST_EVENT_TOKEN = 'sample-vast-event-token';
 
 /**
  * @description Mockup response from API for RTB creative
@@ -240,9 +236,18 @@ const getConfigInterpretResponseRTB = (noAd = false, isInvalidVast = false) => {
       <Wrapper>
         <AdSystem>BLIINK</AdSystem>
         <VASTAdTagURI>https://vast.bliink.io/p/508379d0-9f65-4198-8ba5-f61f2b51224f.xml</VASTAdTagURI>
-        <Error>https://e.api.bliink.io/e?name=vast-error&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MzQwMzA1MjcsImlhdCI6MTYzMzQyNTcyNywiaXNzIjoiYmxpaW5rIiwiZGF0YSI6eyJ0eXBlIjoiYWQtc2VydmVyIiwidHJhbnNhY3Rpb25JZCI6ImE2NjJjZGJmLTkzNDYtNDI0MS1iMTU0LTJhOTc2OTg0NjNmOSIsIm5ldHdvcmtJZCI6MjUsInNpdGVJZCI6MTQzLCJ0YWdJZCI6MTI3MSwiY29va2llSWQiOiIwNWFhN2UwMi05MzgzLTQ1NGYtOTJmZC1jOTE2YWNlMmUyZjYiLCJldmVudElkIjozLCJ0YXJnZXRpbmciOnsicGxhdGZvcm0iOiJXZWJzaXRlIiwicmVmZXJyZXIiOiJodHRwOi8vbG9jYWxob3N0OjgxODEvaW50ZWdyYXRpb25FeGFtcGxlcy9ncHQvYmxpaW5rLWluc3RyZWFtLmh0bWwiLCJwYWdlVXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MTgxL2ludGVncmF0aW9uRXhhbXBsZXMvZ3B0L2JsaWluay1pbnN0cmVhbS5odG1sIiwiaXAiOiIzMS4zOS4xNDEuMTQwIiwidGltZSI6MTYzMzQyNTcyNywibG9jYXRpb24iOnsibGF0aXR1ZGUiOjQ4Ljk0MjIsImxvbmdpdHVkZSI6Mi41MDM5LCJyZWdpb24iOiJJREYiLCJjb3VudHJ5IjoiRlIiLCJjaXR5IjoiQXVsbmF5LXNvdXMtQm9pcyIsInppcENvZGUiOiI5MzYwMCIsImRlcGFydG1lbnQiOiI5MyJ9LCJjaXR5IjoiQXVsbmF5LXNvdXMtQm9pcyIsImNvdW50cnkiOiJGUiIsImRldmljZU9zIjoibWFjT1MiLCJkZXZpY2VQbGF0Zm9ybSI6IldlYnNpdGUiLCJyYXdVc2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvOTMuMC40NTc3LjYzIFNhZmFyaS81MzcuMzYiLCJjb250ZW50Q2xhc3NpZmljYXRpb24iOnsiYnJhbmRzYWZlIjpmYWxzZX19LCJnZHByIjp7Imhhc0NvbnNlbnQiOnRydWV9LCJ3aW4iOmZhbHNlLCJhZElkIjo1NzkzLCJhZHZlcnRpc2VySWQiOjEsImNhbXBhaWduSWQiOjEsImNyZWF0aXZlSWQiOjExOTQsImVycm9yIjpmYWxzZX19.nJSJPKovg0_jSHtLdrMPDqesAIlFKCuXPXYxpsyWBDw</Error>
-        <Impression>https://e.api.bliink.io/e?name=impression&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MzQwMzA1MjcsImlhdCI6MTYzMzQyNTcyNywiaXNzIjoiYmxpaW5rIiwiZGF0YSI6eyJ0eXBlIjoiYWQtc2VydmVyIiwidHJhbnNhY3Rpb25JZCI6ImE2NjJjZGJmLTkzNDYtNDI0MS1iMTU0LTJhOTc2OTg0NjNmOSIsIm5ldHdvcmtJZCI6MjUsInNpdGVJZCI6MTQzLCJ0YWdJZCI6MTI3MSwiY29va2llSWQiOiIwNWFhN2UwMi05MzgzLTQ1NGYtOTJmZC1jOTE2YWNlMmUyZjYiLCJldmVudElkIjozLCJ0YXJnZXRpbmciOnsicGxhdGZvcm0iOiJXZWJzaXRlIiwicmVmZXJyZXIiOiJodHRwOi8vbG9jYWxob3N0OjgxODEvaW50ZWdyYXRpb25FeGFtcGxlcy9ncHQvYmxpaW5rLWluc3RyZWFtLmh0bWwiLCJwYWdlVXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MTgxL2ludGVncmF0aW9uRXhhbXBsZXMvZ3B0L2JsaWluay1pbnN0cmVhbS5odG1sIiwiaXAiOiIzMS4zOS4xNDEuMTQwIiwidGltZSI6MTYzMzQyNTcyNywibG9jYXRpb24iOnsibGF0aXR1ZGUiOjQ4Ljk0MjIsImxvbmdpdHVkZSI6Mi41MDM5LCJyZWdpb24iOiJJREYiLCJjb3VudHJ5IjoiRlIiLCJjaXR5IjoiQXVsbmF5LXNvdXMtQm9pcyIsInppcENvZGUiOiI5MzYwMCIsImRlcGFydG1lbnQiOiI5MyJ9LCJjaXR5IjoiQXVsbmF5LXNvdXMtQm9pcyIsImNvdW50cnkiOiJGUiIsImRldmljZU9zIjoibWFjT1MiLCJkZXZpY2VQbGF0Zm9ybSI6IldlYnNpdGUiLCJyYXdVc2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvOTMuMC40NTc3LjYzIFNhZmFyaS81MzcuMzYiLCJjb250ZW50Q2xhc3NpZmljYXRpb24iOnsiYnJhbmRzYWZlIjpmYWxzZX19LCJnZHByIjp7Imhhc0NvbnNlbnQiOnRydWV9LCJ3aW4iOmZhbHNlLCJhZElkIjo1NzkzLCJhZHZlcnRpc2VySWQiOjEsImNhbXBhaWduSWQiOjEsImNyZWF0aXZlSWQiOjExOTQsImVycm9yIjpmYWxzZX19.nJSJPKovg0_jSHtLdrMPDqesAIlFKCuXPXYxpsyWBDw</Impression>
-        <Extensions><Price>1</Price><Currency>EUR</Currency>
+        <Error>https://e.api.bliink.io/e?name=vast-error&token=${SAMPLE_VAST_EVENT_TOKEN}</Error>
+        <Impression>https://e.api.bliink.io/e?name=impression&token=${SAMPLE_VAST_EVENT_TOKEN}</Impression>
+        <Extensions><Price>1</Price><Currency>EUR</Currency></Extensions>
+        <Creatives>
+          <Creative>
+            <Linear>
+              <TrackingEvents>
+                <Tracking event="start">https://e.api.bliink.io/e?name=start&token=${SAMPLE_VAST_EVENT_TOKEN}</Tracking>
+              </TrackingEvents>
+            </Linear>
+          </Creative>
+        </Creatives>
       </Wrapper>
     </Ad>
   </VAST>
@@ -529,10 +534,7 @@ describe('BLIINK Adapter interpretResponse', function () {
   for (const test of testsInterpretResponse) {
     it(test.title, () => {
       const res = test.args.fn;
-
-      if (res) {
-        expect(res).to.eql(test.want);
-      }
+      expect(res).to.eql(test.want);
     });
   }
 });
@@ -578,7 +580,7 @@ const testsBuildBid = [
   {
     title: 'input data respect the output model for video',
     args: {
-      fn: buildBid(getConfigVideoBid('video'), getConfigCreativeVideo()),
+      fn: buildBid(getConfigVideoBid(), getConfigCreativeVideo()),
     },
     want: {
       requestId: getConfigBid('video').bidId,
@@ -601,7 +603,7 @@ const testsBuildBid = [
     args: {
       fn: buildBid(
         {
-          ...getConfigVideoBid('video'),
+          ...getConfigVideoBid(),
           creative: {
             video: {
               content: '<VAST></VAST>',
@@ -669,21 +671,21 @@ const testsBuildRequests = [
   {
     title: 'Should not build request, no bidder request exist',
     args: {
-      fn: spec.buildRequests(),
+      fn: () => spec.buildRequests(),
     },
-    want: null,
+    want: () => null,
   },
   {
     title: 'Should build request if bidderRequest exist',
     args: {
-      fn: spec.buildRequests([], getConfigBuildRequest('banner')),
+      fn: () => spec.buildRequests([], getConfigBuildRequest('banner')),
     },
-    want: {
+    want: () => ({
       method: 'POST',
       url: BLIINK_ENDPOINT_ENGINE,
       data: {
-        domLoadingDuration,
-        ect: connectionType,
+        domLoadingDuration: '0',
+        ect: getEffectiveConnectionType(),
         keywords: '',
         pageDescription: '',
         pageTitle: '',
@@ -692,7 +694,7 @@ const testsBuildRequests = [
         tags: [
           {
             transactionId: '2def0c5b2a7f6e',
-            refresh: window.bliinkBid['14f30eca-85d2-11e8-9eed-0242ac120007'] || undefined,
+            refresh: undefined,
             id: '14f30eca-85d2-11e8-9eed-0242ac120007',
             imageUrl: 'https://www.example.com/adimage.jpg',
             videoUrl: 'https://www.example.com/advideo.mp4',
@@ -706,12 +708,12 @@ const testsBuildRequests = [
           },
         ],
       },
-    },
+    }),
   },
   {
     title: 'Should build request width GDPR configuration',
     args: {
-      fn: spec.buildRequests(
+      fn: () => spec.buildRequests(
         [],
         Object.assign(getConfigBuildRequest('banner'), {
           gdprConsent: {
@@ -721,12 +723,12 @@ const testsBuildRequests = [
         })
       ),
     },
-    want: {
+    want: () => ({
       method: 'POST',
       url: BLIINK_ENDPOINT_ENGINE,
       data: {
-        domLoadingDuration,
-        ect: connectionType,
+        domLoadingDuration: '0',
+        ect: getEffectiveConnectionType(),
         gdpr: true,
         gdprConsent: 'XXXX',
         pageDescription: '',
@@ -737,7 +739,7 @@ const testsBuildRequests = [
         tags: [
           {
             transactionId: '2def0c5b2a7f6e',
-            refresh: window.bliinkBid['14f30eca-85d2-11e8-9eed-0242ac120007'] || undefined,
+            refresh: undefined,
             id: '14f30eca-85d2-11e8-9eed-0242ac120007',
             imageUrl: 'https://www.example.com/adimage.jpg',
             videoUrl: 'https://www.example.com/advideo.mp4',
@@ -751,12 +753,12 @@ const testsBuildRequests = [
           },
         ],
       },
-    },
+    }),
   },
   {
     title: 'Should build request width uspConsent if exists',
     args: {
-      fn: spec.buildRequests(
+      fn: () => spec.buildRequests(
         [],
         Object.assign(getConfigBuildRequest('banner'), {
           gdprConsent: {
@@ -767,12 +769,12 @@ const testsBuildRequests = [
         })
       ),
     },
-    want: {
+    want: () => ({
       method: 'POST',
       url: BLIINK_ENDPOINT_ENGINE,
       data: {
-        domLoadingDuration,
-        ect: connectionType,
+        domLoadingDuration: '0',
+        ect: getEffectiveConnectionType(),
         gdpr: true,
         uspConsent: 'uspConsent',
         gdprConsent: 'XXXX',
@@ -784,7 +786,7 @@ const testsBuildRequests = [
         tags: [
           {
             transactionId: '2def0c5b2a7f6e',
-            refresh: window.bliinkBid['14f30eca-85d2-11e8-9eed-0242ac120007'] || undefined,
+            refresh: undefined,
             id: '14f30eca-85d2-11e8-9eed-0242ac120007',
             imageUrl: 'https://www.example.com/adimage.jpg',
             videoUrl: 'https://www.example.com/advideo.mp4',
@@ -798,12 +800,12 @@ const testsBuildRequests = [
           },
         ],
       },
-    },
+    }),
   },
   {
     title: 'Should build request width schain if exists',
     args: {
-      fn: spec.buildRequests(
+      fn: () => spec.buildRequests(
         [
           {
             ortb2: {
@@ -833,12 +835,12 @@ const testsBuildRequests = [
         })
       ),
     },
-    want: {
+    want: () => ({
       method: 'POST',
       url: BLIINK_ENDPOINT_ENGINE,
       data: {
-        domLoadingDuration,
-        ect: connectionType,
+        domLoadingDuration: '0',
+        ect: getEffectiveConnectionType(),
         gdpr: true,
         gdprConsent: 'XXXX',
         pageDescription: '',
@@ -860,7 +862,7 @@ const testsBuildRequests = [
         tags: [
           {
             transactionId: '2def0c5b2a7f6e',
-            refresh: window.bliinkBid['14f30eca-85d2-11e8-9eed-0242ac120007'] || undefined,
+            refresh: undefined,
             id: '14f30eca-85d2-11e8-9eed-0242ac120007',
             imageUrl: 'https://www.example.com/adimage.jpg',
             videoUrl: 'https://www.example.com/advideo.mp4',
@@ -874,12 +876,12 @@ const testsBuildRequests = [
           },
         ],
       },
-    },
+    }),
   },
   {
     title: 'Should build request with eids if exists',
     args: {
-      fn: spec.buildRequests(
+      fn: () => spec.buildRequests(
         [
           {
             userIdAsEids: [
@@ -912,12 +914,12 @@ const testsBuildRequests = [
         })
       ),
     },
-    want: {
+    want: () => ({
       method: 'POST',
       url: BLIINK_ENDPOINT_ENGINE,
       data: {
-        domLoadingDuration,
-        ect: connectionType,
+        domLoadingDuration: '0',
+        ect: getEffectiveConnectionType(),
         gdpr: true,
         gdprConsent: 'XXXX',
         pageDescription: '',
@@ -948,7 +950,7 @@ const testsBuildRequests = [
         tags: [
           {
             transactionId: '2def0c5b2a7f6e',
-            refresh: window.bliinkBid['14f30eca-85d2-11e8-9eed-0242ac120007'] || undefined,
+            refresh: undefined,
             id: '14f30eca-85d2-11e8-9eed-0242ac120007',
             imageUrl: 'https://www.example.com/adimage.jpg',
             videoUrl: 'https://www.example.com/advideo.mp4',
@@ -962,15 +964,30 @@ const testsBuildRequests = [
           },
         ],
       },
-    },
+    }),
   },
 ];
 
 describe('BLIINK Adapter buildRequests', function () {
+  let sandbox;
+  let originalTitle;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    sandbox.stub(utils, 'getDomLoadingDuration').returns(0);
+    window.bliinkBid = {};
+    originalTitle = document.title;
+    document.title = '';
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+    document.title = originalTitle;
+  });
+
   for (const test of testsBuildRequests) {
     it(test.title, () => {
-      const res = test.args.fn;
-      expect(res).to.eql(test.want);
+      expect(test.args.fn()).to.eql(test.want());
     });
   }
 });
@@ -1108,9 +1125,7 @@ describe('BLIINK Adapter keywords & coppa true', function () {
     metaElement.name = 'keywords';
     metaElement.content = 'Bliink, Saber, Prebid';
     sinon.stub(utils, 'getDomLoadingDuration').returns(0);
-    domLoadingDuration = '0';
     configStub = sinon.stub(config, 'getConfig');
-    configStub.withArgs('coppa').returns(true);
     querySelectorStub = sinon.stub(document, 'querySelector').returns(metaElement);
     originalTitle = document.title;
     document.title = '';
@@ -1128,6 +1143,7 @@ describe('BLIINK Adapter keywords & coppa true', function () {
       spec.buildRequests(
         [],
         Object.assign(getConfigBuildRequest('banner'), {
+          ortb2: { regs: { coppa: 1 } },
           gdprConsent: {
             gdprApplies: true,
             consentString: 'XXXX',
@@ -1138,7 +1154,7 @@ describe('BLIINK Adapter keywords & coppa true', function () {
       method: 'POST',
       url: BLIINK_ENDPOINT_ENGINE,
       data: {
-        domLoadingDuration,
+        domLoadingDuration: '0',
         ect: getEffectiveConnectionType(),
         gdpr: true,
         coppa: 1,
@@ -1185,14 +1201,11 @@ describe('getEffectiveConnectionType', () => {
       navigatorStub.restore();
     }
   });
-  if (navigatorStub) {
-    it('should return "unsupported" when effective connection type is undefined', () => {
-      const result = getEffectiveConnectionType();
-      expect(result).to.equal('unsupported');
-    });
-  }
-});
-
-it('should expose gvlid', function () {
-  expect(spec.gvlid).to.equal(GVL_ID);
+  it('should return "unsupported" when effective connection type is undefined', function () {
+    if (!('connection' in navigator)) {
+      this.skip();
+    }
+    const result = getEffectiveConnectionType();
+    expect(result).to.equal('unsupported');
+  });
 });

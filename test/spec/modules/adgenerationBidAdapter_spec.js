@@ -8,7 +8,7 @@ import { addFPDToBidderRequest } from '../../helpers/fpd.js';
 
 describe('AdgenerationAdapter', function () {
   const adapter = newBidder(spec);
-  const ADGENE_PREBID_VERSION = '1.6.6';
+  const ADGENE_PREBID_VERSION = '1.7.0';
   const ENDPOINT_STG = 'https://api-test.scaleout.jp/adgen/prebid';
   const ENDPOINT_RELEASE = 'https://d.socdm.com/adgen/prebid';
 
@@ -191,7 +191,7 @@ describe('AdgenerationAdapter', function () {
       // change the first bidRequest to debug mode
       const copyBidRequests = JSON.parse(JSON.stringify(bidRequests));
       for (const copyBid of copyBidRequests) {
-        copyBid.params.debug = true
+        copyBid.params.debug = true;
       }
       // check banner request
       const request = spec.buildRequests(copyBidRequests, bidderRequest);
@@ -211,7 +211,7 @@ describe('AdgenerationAdapter', function () {
             ]
           ]
         }
-      }
+      };
       const expectedBanner = {
         topframe: 0,
         format: [
@@ -220,7 +220,7 @@ describe('AdgenerationAdapter', function () {
             h: 250
           }
         ]
-      }
+      };
       const request = spec.buildRequests(bidRequests, bidderRequest)[0];
       // check banner request
       const url = new URL(request.url);
@@ -264,7 +264,7 @@ describe('AdgenerationAdapter', function () {
             required: true
           }
         }
-      }
+      };
       const request = spec.buildRequests(bidRequests, bidderRequest)[1];
       // check native request
       const url = new URL(request.url);
@@ -300,7 +300,7 @@ describe('AdgenerationAdapter', function () {
             ]
           }
         }
-      }
+      };
       const request = spec.buildRequests(bidRequests, { ...bidderRequest, ortb2: criteoParams })[0];
       expect(request.data.ortb.user).to.deep.equal(criteoParams.user);
     });
@@ -353,7 +353,7 @@ describe('AdgenerationAdapter', function () {
             schain: schainSmaple
           }
         },
-      }
+      };
       const request = spec.buildRequests(bidRequests, { ...bidderRequest, ortb2: idparams })[3];
       expect(request.data.ortb.user).to.deep.equal(idparams.user);
 
@@ -1101,7 +1101,7 @@ describe('AdgenerationAdapter', function () {
           'rotation': '0',
         }
       },
-    }
+    };
     serverResponse.emptyAdomain = {};
     serverResponse.emptyAdomain.banner = JSON.parse(JSON.stringify(serverResponse.normal.banner));
     serverResponse.emptyAdomain.banner.results[0].adomain = [];
@@ -1249,7 +1249,7 @@ describe('AdgenerationAdapter', function () {
       expect(result.native.sponsoredBy).to.equal(bidResponses.normal.native.native.sponsoredBy);
       expect(result.native.body).to.equal(bidResponses.normal.native.native.body);
       expect(result.native.cta).to.equal(bidResponses.normal.native.native.cta);
-      expect(decodeURIComponent(result.native.privacyLink)).to.equal(bidResponses.normal.native.native.privacyLink);
+      expect(result.native.privacyLink).to.equal(bidResponses.normal.native.native.privacyLink);
       expect(result.native.clickUrl).to.equal(bidResponses.normal.native.native.clickUrl);
       expect(result.native.impressionTrackers[0]).to.equal(bidResponses.normal.native.native.impressionTrackers[0]);
       expect(result.native.clickTrackers[0]).to.equal(bidResponses.normal.native.native.clickTrackers[0]);
@@ -1296,7 +1296,7 @@ describe('AdgenerationAdapter', function () {
       expect(result.native.sponsoredBy).to.equal(bidResponses.normal.native.native.sponsoredBy);
       expect(result.native.body).to.equal(bidResponses.normal.native.native.body);
       expect(result.native.cta).to.equal(bidResponses.normal.native.native.cta);
-      expect(decodeURIComponent(result.native.privacyLink)).to.equal(bidResponses.normal.native.native.privacyLink);
+      expect(result.native.privacyLink).to.equal(bidResponses.normal.native.native.privacyLink);
       expect(result.native.clickUrl).to.equal(bidResponses.normal.native.native.clickUrl);
       expect(result.native.impressionTrackers[0]).to.equal(bidResponses.normal.native.native.impressionTrackers[0]);
       expect(result.native.clickTrackers[0]).to.equal(bidResponses.normal.native.native.clickTrackers[0]);
@@ -1304,6 +1304,14 @@ describe('AdgenerationAdapter', function () {
       // no adomain
       expect(result).to.not.have.any.keys('meta');
       expect(result).to.not.have.any.keys('advertiserDomains');
+    });
+
+    it('returns privacyLink as-is without URL-encoding', function () {
+      const optoutUrl = 'https://example.com/optout/?a=1&b=2#top';
+      const body = JSON.parse(JSON.stringify(serverResponse.normal.native));
+      body.results[0].native.assets.find(asset => asset.id === 502).data.value = optoutUrl;
+      const result = spec.interpretResponse({ body }, bidRequests.native)[0];
+      expect(result.native.privacyLink).to.equal(optoutUrl);
     });
 
     describe('currency handling', function () {

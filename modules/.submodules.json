@@ -2,12 +2,15 @@
   "parentModules": {
     "userId": [
       "33acrossIdSystem",
+      "abtshieldIdSystem",
+      "acxiomRealIdSystem",
       "admixerIdSystem",
       "adqueryIdSystem",
       "adplusIdSystem",
       "adriverIdSystem",
       "adtelligentIdSystem",
       "amxIdSystem",
+      "anonymisedIdSystem",
       "ceeIdSystem",
       "connectIdSystem",
       "criteoIdSystem",
@@ -51,6 +54,7 @@
       "pubmaticIdSystem",
       "rediadsIdSystem",
       "rewardedInterestIdSystem",
+      "sevioIdSystem",
       "sharedIdSystem",
       "startioIdSystem",
       "taboolaIdSystem",
@@ -105,9 +109,11 @@
       "intersectionRtdProvider",
       "jwplayerRtdProvider",
       "liveIntentRtdProvider",
+      "mantisRtdProvider",
       "mediafilterRtdProvider",
       "medianetRtdProvider",
       "mgidRtdProvider",
+      "mileRtdProvider",
       "mobianRtdProvider",
       "neuwoRtdProvider",
       "nodalsAiRtdProvider",
@@ -131,9 +137,11 @@
       "sirdataRtdProvider",
       "symitriDapRtdProvider",
       "timeoutRtdProvider",
+      "transfonSecurityRtdProvider",
       "weboramaRtdProvider",
       "wurflRtdProvider",
-      "encypherRtdProvider"
+      "encypherRtdProvider",
+      "stackupRtdProvider"
     ],
     "fpdModule": [
       "validationFpdModule",
@@ -143,6 +151,9 @@
       "jwplayerVideoProvider",
       "videojsVideoProvider",
       "adplayerproVideoProvider"
+    ],
+    "genericAnalyticsAdapter": [
+      "genericAnalyticsSkinnyEvents"
     ]
   }
 }

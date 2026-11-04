@@ -28,7 +28,7 @@ export const dep = {
   getDocument
 };
 
-const oneClient = clientSectionChecker('FPD')
+const oneClient = clientSectionChecker('FPD');
 
 export interface FirstPartyDataConfig {
   /**
@@ -36,6 +36,12 @@ export interface FirstPartyDataConfig {
    * https://developer.mozilla.org/en-US/docs/Web/API/NavigatorUAData#returning_high_entropy_values
    */
   uaHints?: string[]
+  /**
+   * If true, a bidder-specific schain (`ortb2.source.ext.schain` in `setBidderConfig`)
+   * replaces the global schain for that bidder. By default (false), bidder-specific FPD is deep-merged into global
+   * FPD, so the bidder's schain nodes are appended to the global schain's nodes.
+   */
+  replaceGlobalSchain?: boolean
   /**
    * Control keyword enrichment - `site.keywords`, `dooh.keywords` and/or `app.keywords`.
    */
@@ -45,7 +51,7 @@ export interface FirstPartyDataConfig {
      */
     meta?: boolean,
     /**
-     * If true (the default), look for keywords in a JSON-LD tag (<script type="application/json+ld">) and add themm to first party data.
+     * If true (the default), look for keywords in a JSON-LD tag (<script type="application/ld+json">) and add themm to first party data.
      */
     json?: boolean
   }
@@ -116,7 +122,7 @@ function getSUA() {
 }
 
 function removeUndef(obj) {
-  return getDefinedParams(obj, Object.keys(obj))
+  return getDefinedParams(obj, Object.keys(obj));
 }
 
 const ENRICHMENTS = {
@@ -151,7 +157,7 @@ const ENRICHMENTS = {
       };
 
       return device;
-    })
+    });
   },
   regs() {
     const regs = {} as any;
@@ -191,13 +197,13 @@ export const getJsonLdKeywords = memoize(() => {
       }
     }
     return keywords;
-  })
+  });
 });
 
 export const getMetaTagKeywords = memoize(() => {
   return winFallback((win) => {
     return win.document.querySelector('meta[name="keywords"]')?.content?.split(',').map(k => k.trim());
-  })
+  });
 });
 
 // Enrichment of properties common across dooh, app and site - will be dropped into whatever
@@ -217,5 +223,5 @@ function clientEnrichment(ortb2, ri) {
     publisher: removeUndef({
       domain: dep.findRootDomain(domain)
     })
-  })
+  });
 }

@@ -38,10 +38,32 @@ process.on('message', function (options) {
     process.exit(fail ? 1 : 0);
   }
 
-  process.on('SIGINT', () => quit());
+  let server = null;
+  let stopping = false;
+
+  // Exiting straight away would skip karma's shutdown, which is what kills the browsers it launched;
+  // a browser left behind keeps reconnecting to port 9876 and joins the next karma's runs.
+  function stop(signal) {
+    if (server == null || (stopping && signal)) {
+      quit();
+      return;
+    }
+    if (stopping) return;
+    stopping = true;
+    // karma has its own handlers for the signals
+    if (!signal) server.stop();
+  }
+
+  process.on('SIGINT', () => stop(true));
+  process.on('SIGTERM', () => stop(true));
+  // gulp can go away without this process being signalled, e.g. when only gulp is sent SIGINT.
+  // A terminal Ctrl+C also disconnects, once gulp exits; that must not cut the shutdown short.
+  process.on('disconnect', () => stop(false));
 
   function runKarma(file, chunkNo) {
-    let cfg = karmaConfMaker(options.coverage, options.browserstack, options.watch, file, options.disableFeatures, chunkNo);
+    // `file` is a chunk of the whole suite unless --file was given; the config needs to tell
+    // those apart, and cannot, since both arrive as arrays
+    let cfg = karmaConfMaker(options.coverage, options.browserstack, options.watch, file, options.disableFeatures, chunkNo, options.file != null);
     if (options.browsers && options.browsers.length) {
       cfg.browsers = options.browsers;
     }
@@ -50,9 +72,12 @@ process.on('message', function (options) {
     }
     cfg = karma.config.parseConfig(null, cfg);
     return new Promise((resolve, reject) => {
-      new karma.Server(cfg, (exitCode) => {
+      server = new karma.Server(cfg, (exitCode) => {
+        server = null;
+        if (stopping) quit();
         exitCode ? reject(exitCode) : resolve(exitCode);
-      }).start();
+      });
+      server.start();
     });
   }
 
@@ -62,8 +87,8 @@ process.on('message', function (options) {
       chunks.push([options.file]);
     } else {
       const chunkNum = process.env['TEST_CHUNKS'] ?? 1;
-      const pat = process.env['TEST_PAT'] ?? '*_spec.js'
-      const tests = glob.sync('test/**/' + pat).sort();
+      const pat = process.env['TEST_PAT'] ?? '*_spec.js';
+      const tests = glob.sync('test/spec/**/' + pat).sort();
       const chunkLen = chunkNum === 'MAX' ? 0 : Math.floor(tests.length / Number(chunkNum));
       chunks.push([]);
       tests.forEach((fn) => {

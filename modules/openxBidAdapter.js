@@ -5,6 +5,12 @@ import { mergeDeep } from '../src/utils.js';
 import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { ortbConverter } from '../libraries/ortbConverter/converter.js';
 
+/**
+ * @typedef {import('../src/adapters/bidderFactory.js').BidRequest} BidRequest
+ * @typedef {import('./openxBidAdapter.d.ts').OpenxBidderParams} OpenxBidderParams
+ * @typedef {BidRequest & {params: OpenxBidderParams}} OpenxBidRequest
+ */
+
 const bidderConfig = 'hb_pb_ortb';
 const bidderVersion = '2.0';
 export const REQUEST_URL = 'https://rtb.openx.net/openrtbb/prebidjs';
@@ -56,7 +62,7 @@ const converter = ortbConverter({
         bc: `${bidderConfig}_${bidderVersion}`,
         pv: '$prebid.version$'
       }
-    })
+    });
     const bid = context.bidRequests[0];
     if (bid.params.coppa) {
       utils.deepSetValue(req, 'regs.coppa', 1);
@@ -72,7 +78,7 @@ const converter = ortbConverter({
       utils.deepSetValue(req, 'ext.response_template_name', bid.params.response_template_name);
     }
     if (bid.params.test) {
-      req.test = 1
+      req.test = 1;
     }
     return req;
   },
@@ -117,7 +123,7 @@ const converter = ortbConverter({
           let videoParams = bidRequest.mediaTypes[VIDEO];
           if (videoParams) {
             videoParams = Object.assign({}, videoParams, bidRequest.params.video);
-            bidRequest = { ...bidRequest, mediaTypes: { [VIDEO]: videoParams } }
+            bidRequest = { ...bidRequest, mediaTypes: { [VIDEO]: videoParams } };
           }
           orig(imp, bidRequest, context);
         }
@@ -126,6 +132,10 @@ const converter = ortbConverter({
   }
 });
 
+/**
+ * @param {OpenxBidRequest} bidRequest
+ * @returns {boolean}
+ */
 function isBidRequestValid(bidRequest) {
   const hasDelDomainOrPlatform = bidRequest.params.delDomain ||
     bidRequest.params.platform;
@@ -143,7 +153,12 @@ function buildRequests(bidRequests, bidderRequest) {
   return [{
     method: 'POST',
     url: config.getConfig('openxOrtbUrl') || REQUEST_URL,
-    data: converter.toORTB({ bidRequests, bidderRequest })
+    data: converter.toORTB({ bidRequests, bidderRequest }),
+    // Prebid core gzips the body and appends `gzip=1` to the URL; it falls back to an
+    // uncompressed request in debug mode or when the browser lacks CompressionStream.
+    options: {
+      endpointCompression: true
+    }
   }];
 }
 
@@ -181,12 +196,12 @@ function getUserSyncs(syncOptions, responses, gdprConsent, uspConsent, gppConsen
     if (responses.length > 0 && responses[0].body && responses[0].body.ext) {
       const ext = responses[0].body.ext;
       if (ext.delDomain) {
-        syncUrl = `https://${ext.delDomain}/w/1.0/pd`
+        syncUrl = `https://${ext.delDomain}/w/1.0/pd`;
       } else if (ext.platform) {
-        queryParamStrings.push('ph=' + ext.platform)
+        queryParamStrings.push('ph=' + ext.platform);
       }
     } else {
-      queryParamStrings.push('ph=' + DEFAULT_PH)
+      queryParamStrings.push('ph=' + DEFAULT_PH);
     }
     return [{
       type: pixelType,

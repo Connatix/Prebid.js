@@ -15,10 +15,12 @@ const ALIASES = [
   { code: 'admixeradx', endpoint: 'https://inv-nets.admixer.net/adxprebid.1.2.aspx' },
   'rtbstack',
   'theads',
+  'aditgen',
 ];
 const RTB_RELATED_ALIASES = [
   'rtbstack',
   'theads',
+  'aditgen',
 ];
 export const spec = {
   code: BIDDER_CODE,
@@ -91,7 +93,7 @@ export const spec = {
       payload.imps.push(imp);
     });
 
-    const urlForRequest = endpointUrl || getEndpointUrl(bidderRequest.bidderCode)
+    const urlForRequest = endpointUrl || getEndpointUrl(bidderRequest.bidderCode);
     return {
       method: 'POST',
       url: urlForRequest,
