@@ -1,19 +1,36 @@
-import * as utilities from 'libraries/vidazooUtils/bidderUtils.js'
+import * as utilities from 'libraries/vidazooUtils/bidderUtils.js';
 import { expect } from "chai";
 import sinon from "sinon";
 import * as utils from 'src/utils.js';
-import { config } from 'src/config.js';
+import { server } from 'test/mocks/xhr.js';
+import { config } from '../../../../src/config.js';
 import {
   IFRAME_SYNC_DEFAULT_URL,
   IMAGE_SYNC_DEFAULT_URL,
   SESSION_ID_KEY
 } from "../../../../libraries/vidazooUtils/constants.js";
-import { bidderSettings } from 'src/bidderSettings.js';
+import { bidderSettings } from '../../../../src/bidderSettings.js';
+
+// ajax is rewritten by the callerContext babel plugin and cannot be stubbed on the
+// module namespace; assert against the global fetch mock's recorded requests.
+function expectTrackingPing(expectedUrl) {
+  const matching = server.requests.filter((req) => req.url === expectedUrl);
+  expect(matching.length).to.equal(1);
+  expect(matching[0].method).to.equal('GET');
+  expect(matching[0].fetch.request.keepalive).to.be.true;
+}
+
+function expectTrackingPingMatching(urlPattern) {
+  const matching = server.requests.filter((req) => urlPattern.test(req.url));
+  expect(matching.length).to.equal(1);
+  expect(matching[0].method).to.equal('GET');
+  expect(matching[0].fetch.request.keepalive).to.be.true;
+}
 
 describe('Vidazoo Bidder Utils Tests', function () {
   describe('createSessionId', function () {
     it('Should return string with wsid_', function () {
-      const result = utilities.createSessionId()
+      const result = utilities.createSessionId();
       expect(result).to.exist.and.to.include('wsid_');
     });
   });
@@ -293,7 +310,7 @@ describe('Vidazoo Bidder Utils Tests', function () {
       clock.restore();
     });
     it('should get value that was previously set', function () {
-      const value = "something"
+      const value = "something";
       const localStore = { newKey: value };
       const storageMock = {
         setDataInLocalStorage: sinon.stub().callsFake((k, v) => { localStore[k] = v; }),
@@ -345,7 +362,7 @@ describe('Vidazoo Bidder Utils Tests', function () {
         const current = utilities.getUniqueDealId(storageMock, key, 100);
         expect(current).to.not.be.equal(uniqueDealId);
         done();
-      }, 200)
+      }, 200);
     });
   });
 
@@ -376,16 +393,28 @@ describe('Vidazoo Bidder Utils Tests', function () {
         done();
       }, 200);
     });
+
+    it('should return 0 when an error is thrown', function () {
+      const key = 'myDealKey';
+      const storageMock = {
+        setDataInLocalStorage: sinon.stub(),
+        getDataFromLocalStorage: sinon.stub().returns(JSON.stringify({ value: 1, created: 1 }))
+      };
+      const dateNowStub = sinon.stub(Date, 'now').throws(new Error('storage error'));
+      const dealId = utilities.getNextDealId(storageMock, key);
+      expect(dealId).to.be.equal(0);
+      dateNowStub.restore();
+    });
   });
   describe('hashCode', function () {
     it('should result with _ as a prefix and 8 digits', function () {
-      const result = utilities.hashCode("code")
+      const result = utilities.hashCode("code");
       expect(result).to.be.equal("_3059181");
-    })
+    });
     it('should result with ^ as a prefix and 10 digits', function () {
-      const result = utilities.hashCode("1234567890", "^")
+      const result = utilities.hashCode("1234567890", "^");
       expect(result).to.be.equal("^-2054162789");
-    })
+    });
     it('should return prefix with 0 for empty string', function () {
       const result = utilities.hashCode('');
       expect(result).to.equal('_0');
@@ -393,14 +422,7 @@ describe('Vidazoo Bidder Utils Tests', function () {
   });
 
   describe('onBidWon', function () {
-    beforeEach(function () {
-      sinon.stub(utils, 'triggerPixel');
-    });
-    afterEach(function () {
-      utils.triggerPixel.restore();
-    });
-
-    it('should call triggerPixel with nurl', function () {
+    it('should send keepalive ajax GET with nurl', function () {
       const bid = {
         adUnitCode: 'div-gpt-ad-12345-0',
         adId: '2d52001cabd527',
@@ -422,11 +444,7 @@ describe('Vidazoo Bidder Utils Tests', function () {
         width: 300
       };
       utilities.onBidWon(bid);
-      expect(utils.triggerPixel.called).to.be.true;
-
-      const url = utils.triggerPixel.args[0];
-
-      expect(url[0]).to.be.equal('https://test.com/win-notice?test=123&adId=2d52001cabd527&creativeId=12610997325162499419&auctionId=1fdb5ff1b6eaa7&transactionId=c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf&adUnitCode=div-gpt-ad-12345-0&cpm=0.8&currency=USD&originalCpm=0.8&originalCurrency=USD&netRevenue=true&mediaType=banner&timeToRespond=100&status=rendered');
+      expectTrackingPing('https://test.com/win-notice?test=123&adId=2d52001cabd527&creativeId=12610997325162499419&auctionId=1fdb5ff1b6eaa7&transactionId=c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf&adUnitCode=div-gpt-ad-12345-0&cpm=0.8&currency=USD&originalCpm=0.8&originalCurrency=USD&netRevenue=true&mediaType=banner&timeToRespond=100&status=rendered');
     });
 
     it('should append ? when nurl has no existing query string', function () {
@@ -451,12 +469,11 @@ describe('Vidazoo Bidder Utils Tests', function () {
         width: 300
       };
       utilities.onBidWon(bid);
-      expect(utils.triggerPixel.called).to.be.true;
-      const url = utils.triggerPixel.args[0][0];
-      expect(url).to.match(/^https:\/\/test\.com\/win-notice\?adId=/);
+      expectTrackingPingMatching(/^https:\/\/test\.com\/win-notice\?adId=/);
     });
 
-    it('should not call triggerPixel when nurl not passed in bid', function () {
+    it('should not send ping when nurl not passed in bid', function () {
+      const beforeCount = server.requests.length;
       const bid = {
         adUnitCode: 'div-gpt-ad-12345-0',
         adId: '2d52001cabd527',
@@ -477,19 +494,12 @@ describe('Vidazoo Bidder Utils Tests', function () {
         width: 300
       };
       utilities.onBidWon(bid);
-      expect(utils.triggerPixel.called).to.be.false;
+      expect(server.requests.length).to.equal(beforeCount);
     });
   });
 
   describe('onBidBillable', function () {
-    beforeEach(function () {
-      sinon.stub(utils, 'triggerPixel');
-    });
-    afterEach(function () {
-      utils.triggerPixel.restore();
-    });
-
-    it('should call triggerPixel with burl', function () {
+    it('should send keepalive ajax GET with burl', function () {
       const bid = {
         adUnitCode: 'div-gpt-ad-12345-0',
         adId: '2d52001cabd527',
@@ -511,11 +521,7 @@ describe('Vidazoo Bidder Utils Tests', function () {
         width: 300
       };
       utilities.onBidBillable(bid);
-      expect(utils.triggerPixel.called).to.be.true;
-
-      const url = utils.triggerPixel.args[0];
-
-      expect(url[0]).to.be.equal('https://test.com/billing-notice?test=123&adId=2d52001cabd527&creativeId=12610997325162499419&auctionId=1fdb5ff1b6eaa7&transactionId=c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf&adUnitCode=div-gpt-ad-12345-0&cpm=0.8&currency=USD&originalCpm=0.8&originalCurrency=USD&netRevenue=true&mediaType=banner&timeToRespond=100&status=rendered');
+      expectTrackingPing('https://test.com/billing-notice?test=123&adId=2d52001cabd527&creativeId=12610997325162499419&auctionId=1fdb5ff1b6eaa7&transactionId=c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf&adUnitCode=div-gpt-ad-12345-0&cpm=0.8&currency=USD&originalCpm=0.8&originalCurrency=USD&netRevenue=true&mediaType=banner&timeToRespond=100&status=rendered');
     });
 
     it('should append ? when burl has no existing query string', function () {
@@ -540,12 +546,11 @@ describe('Vidazoo Bidder Utils Tests', function () {
         width: 300
       };
       utilities.onBidBillable(bid);
-      expect(utils.triggerPixel.called).to.be.true;
-      const url = utils.triggerPixel.args[0][0];
-      expect(url).to.match(/^https:\/\/test\.com\/billing-notice\?adId=/);
+      expectTrackingPingMatching(/^https:\/\/test\.com\/billing-notice\?adId=/);
     });
 
-    it('should not call triggerPixel when burl not passed in bid', function () {
+    it('should not send ping when burl not passed in bid', function () {
+      const beforeCount = server.requests.length;
       const bid = {
         adUnitCode: 'div-gpt-ad-12345-0',
         adId: '2d52001cabd527',
@@ -566,7 +571,111 @@ describe('Vidazoo Bidder Utils Tests', function () {
         width: 300
       };
       utilities.onBidBillable(bid);
-      expect(utils.triggerPixel.called).to.be.false;
+      expect(server.requests.length).to.equal(beforeCount);
+    });
+  });
+
+  describe('onBidViewable', function () {
+    it('should append ? when viewableUrl has no existing query string', function () {
+      const bid = {
+        adUnitCode: 'div-gpt-ad-12345-0',
+        adId: '2d52001cabd527',
+        auctionId: '1fdb5ff1b6eaa7',
+        transactionId: 'c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf',
+        status: 'rendered',
+        timeToRespond: 100,
+        cpm: 0.8,
+        originalCpm: 0.8,
+        creativeId: '12610997325162499419',
+        currency: 'USD',
+        originalCurrency: 'USD',
+        height: 250,
+        mediaType: 'banner',
+        viewableUrl: 'https://test.com/onBidViewable',
+        netRevenue: true,
+        requestId: '2d52001cabd527',
+        ttl: 30,
+        width: 300
+      };
+      utilities.onBidViewable(bid);
+      expectTrackingPingMatching(/^https:\/\/test\.com\/onBidViewable\?adId=/);
+    });
+
+    it('should not send ping when viewableUrl not passed in bid', function () {
+      const beforeCount = server.requests.length;
+      const bid = {
+        adUnitCode: 'div-gpt-ad-12345-0',
+        adId: '2d52001cabd527',
+        auctionId: '1fdb5ff1b6eaa7',
+        transactionId: 'c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf',
+        status: 'rendered',
+        timeToRespond: 100,
+        cpm: 0.8,
+        originalCpm: 0.8,
+        creativeId: '12610997325162499419',
+        currency: 'USD',
+        originalCurrency: 'USD',
+        height: 250,
+        mediaType: 'banner',
+        netRevenue: true,
+        requestId: '2d52001cabd527',
+        ttl: 30,
+        width: 300
+      };
+      utilities.onBidViewable(bid);
+      expect(server.requests.length).to.equal(beforeCount);
+    });
+  });
+
+  describe('onAdRenderSucceeded', function () {
+    it('should append ? when renderSuccessUrl has no existing query string', function () {
+      const bid = {
+        adUnitCode: 'div-gpt-ad-12345-0',
+        adId: '2d52001cabd527',
+        auctionId: '1fdb5ff1b6eaa7',
+        transactionId: 'c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf',
+        status: 'rendered',
+        timeToRespond: 100,
+        cpm: 0.8,
+        originalCpm: 0.8,
+        creativeId: '12610997325162499419',
+        currency: 'USD',
+        originalCurrency: 'USD',
+        height: 250,
+        mediaType: 'banner',
+        renderSuccessUrl: 'https://test.com/renderSuccessUrl',
+        netRevenue: true,
+        requestId: '2d52001cabd527',
+        ttl: 30,
+        width: 300
+      };
+      utilities.onAdRenderSucceeded(bid);
+      expectTrackingPingMatching(/^https:\/\/test\.com\/renderSuccessUrl\?adId=/);
+    });
+
+    it('should not send ping when renderSuccessUrl not passed in bid', function () {
+      const beforeCount = server.requests.length;
+      const bid = {
+        adUnitCode: 'div-gpt-ad-12345-0',
+        adId: '2d52001cabd527',
+        auctionId: '1fdb5ff1b6eaa7',
+        transactionId: 'c881914b-a3b5-4ecf-ad9c-1c2f37c6aabf',
+        status: 'rendered',
+        timeToRespond: 100,
+        cpm: 0.8,
+        originalCpm: 0.8,
+        creativeId: '12610997325162499419',
+        currency: 'USD',
+        originalCurrency: 'USD',
+        height: 250,
+        mediaType: 'banner',
+        netRevenue: true,
+        requestId: '2d52001cabd527',
+        ttl: 30,
+        width: 300
+      };
+      utilities.onAdRenderSucceeded(bid);
+      expect(server.requests.length).to.equal(beforeCount);
     });
   });
 
@@ -699,57 +808,6 @@ describe('Vidazoo Bidder Utils Tests', function () {
     });
   });
 
-  describe('appendUserIdsToRequestPayload', function () {
-    it('should extract lipbid from lipb provider', function () {
-      const payload = {};
-      const userIds = {
-        lipb: { lipbid: 'lipb-id-123' }
-      };
-      utilities.appendUserIdsToRequestPayload(payload, userIds);
-      expect(payload['uid.lipb']).to.be.equal('lipb-id-123');
-    });
-
-    it('should extract uid from id5id provider', function () {
-      const payload = {};
-      const userIds = {
-        id5id: { uid: 'id5-uid-456' }
-      };
-      utilities.appendUserIdsToRequestPayload(payload, userIds);
-      expect(payload['uid.id5id']).to.be.equal('id5-uid-456');
-    });
-
-    it('should use raw value for other providers', function () {
-      const payload = {};
-      const userIds = {
-        tdid: 'tdid-value-789',
-        criteoId: 'criteo-value-000'
-      };
-      utilities.appendUserIdsToRequestPayload(payload, userIds);
-      expect(payload['uid.tdid']).to.be.equal('tdid-value-789');
-      expect(payload['uid.criteoId']).to.be.equal('criteo-value-000');
-    });
-
-    it('should handle all provider types together', function () {
-      const payload = {};
-      const userIds = {
-        lipb: { lipbid: 'lipb-id' },
-        id5id: { uid: 'id5-uid' },
-        tdid: 'tdid-value'
-      };
-      utilities.appendUserIdsToRequestPayload(payload, userIds);
-      expect(payload['uid.lipb']).to.be.equal('lipb-id');
-      expect(payload['uid.id5id']).to.be.equal('id5-uid');
-      expect(payload['uid.tdid']).to.be.equal('tdid-value');
-    });
-
-    it('should not modify payload when userIds is empty', function () {
-      const payload = { existing: 'value' };
-      utilities.appendUserIdsToRequestPayload(payload, {});
-      expect(Object.keys(payload)).to.have.lengthOf(1);
-      expect(payload.existing).to.be.equal('value');
-    });
-  });
-
   describe('getVidazooSessionId', function () {
     it('should call getStorageItem with SESSION_ID_KEY via storage mock', function () {
       const storageMock = {
@@ -845,6 +903,51 @@ describe('Vidazoo Bidder Utils Tests', function () {
       expect(data.mediaTypes).to.deep.equal({ banner: { sizes: [[300, 250]] } });
       expect(data.schain).to.deep.equal({ ver: '1.0', nodes: [{ asi: 'exchange.com', sid: '1234' }] });
       expect(data.url).to.equal(encodeURIComponent('https://publisher.com'));
+    });
+
+    it('should copy nativeOrtbRequest onto the payload when present', function () {
+      const nativeOrtbRequest = {
+        ver: '1.2',
+        assets: [{ id: 1, required: 1, title: { len: 80 } }]
+      };
+      const bid = {
+        ...baseBid,
+        mediaTypes: { native: { ortb: nativeOrtbRequest } },
+        nativeOrtbRequest
+      };
+      const data = utilities.buildRequestData(
+        bid, 'https://publisher.com', [], baseBidderRequest, 3000, storageMock, '1.0.0', 'vidazoo', null
+      );
+      expect(data.nativeOrtbRequest).to.deep.equal(nativeOrtbRequest);
+      expect(data.mediaTypes.native.ortb).to.deep.equal(nativeOrtbRequest);
+    });
+
+    it('should copy nativeOrtbRequest onto the payload for multiformat bids that still have native active', function () {
+      const nativeOrtbRequest = { ver: '1.2', assets: [{ id: 1, required: 1, title: { len: 80 } }] };
+      const bid = {
+        ...baseBid,
+        mediaTypes: { banner: { sizes: [[300, 250]] }, native: { ortb: nativeOrtbRequest } },
+        nativeOrtbRequest
+      };
+      const data = utilities.buildRequestData(
+        bid, 'https://publisher.com', [[300, 250]], baseBidderRequest, 3000, storageMock, '1.0.0', 'vidazoo', null
+      );
+      expect(data.nativeOrtbRequest).to.deep.equal(nativeOrtbRequest);
+    });
+
+    it('should not send nativeOrtbRequest when mediaTypes was narrowed (e.g. Size Mapping V2) and native is not active', function () {
+      const nativeOrtbRequest = { ver: '1.2', assets: [{ id: 1, required: 1, title: { len: 80 } }] };
+      // core copies the ad unit level nativeOrtbRequest even though the bid's mediaTypes only has banner/video
+      const bid = {
+        ...baseBid,
+        mediaTypes: { banner: { sizes: [[300, 250]] }, video: { playerSize: [[640, 480]] } },
+        nativeOrtbRequest
+      };
+      const data = utilities.buildRequestData(
+        bid, 'https://publisher.com', [[300, 250]], baseBidderRequest, 3000, storageMock, '1.0.0', 'vidazoo', null
+      );
+      expect(data).to.not.have.property('nativeOrtbRequest');
+      expect(data.mediaTypes).to.not.have.property('native');
     });
 
     it('should extract ortb2 site fields (cat, pagecat, contentData, contentLang, coppa)', function () {
@@ -969,6 +1072,21 @@ describe('Vidazoo Bidder Utils Tests', function () {
       expect(data.dsa).to.deep.equal({ required: 1 });
     });
 
+    it('should not include device.deviceType if original is not a number', function () {
+      const bidderRequest = {
+        ...baseBidderRequest,
+        ortb2: {
+          ...baseBidderRequest.ortb2,
+          regs: { coppa: 0, ext: { dsa: { required: 1 } } }
+        }
+      };
+      bidderRequest.ortb2.device.devicetype = '';
+      const data = utilities.buildRequestData(
+        baseBid, 'https://publisher.com', [[300, 250]], bidderRequest, 3000, storageMock, '1.0.0', 'vidazoo', null
+      );
+      expect(data?.device?.devicetype).not.exist;
+    });
+
     it('should include placementId when set in params', function () {
       const bid = {
         ...baseBid,
@@ -1011,18 +1129,6 @@ describe('Vidazoo Bidder Utils Tests', function () {
         bid, 'https://publisher.com', [[300, 250]], baseBidderRequest, 3000, storageMock, '1.0.0', 'vidazoo', null
       );
       expect(data['uid.adserver.org']).to.equal('eid-123');
-    });
-
-    it('should append userId to request data', function () {
-      const bid = {
-        ...baseBid,
-        userId: { tdid: 'tdid-val', lipb: { lipbid: 'lipb-val' } }
-      };
-      const data = utilities.buildRequestData(
-        bid, 'https://publisher.com', [[300, 250]], baseBidderRequest, 3000, storageMock, '1.0.0', 'vidazoo', null
-      );
-      expect(data['uid.tdid']).to.equal('tdid-val');
-      expect(data['uid.lipb']).to.equal('lipb-val');
     });
 
     it('should include ortb2 and ortb2Imp in data', function () {
@@ -1140,6 +1246,14 @@ describe('Vidazoo Bidder Utils Tests', function () {
   });
 
   describe('createInterpretResponseFn', function () {
+    // the request that produced a native response must carry the normalized nativeOrtbRequest set by core
+    const NATIVE_REQUEST = {
+      data: {
+        bidId: 'bid-native',
+        nativeOrtbRequest: { ver: '1.2', assets: [{ id: 1, required: 1, title: { len: 80 } }] }
+      }
+    };
+
     it('should return empty array when serverResponse is null', function () {
       const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
       const result = interpretResponse(null, {});
@@ -1236,6 +1350,194 @@ describe('Vidazoo Bidder Utils Tests', function () {
       expect(bid.ad).to.be.undefined;
     });
 
+    it('should parse a native response from result.native.ortb when supportNative is enabled', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+      const nativeOrtb = {
+        ver: '1.2',
+        assets: [{ id: 1, title: { text: 'Hello' } }],
+        link: { url: 'https://example.com' }
+      };
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-native',
+            price: 3.0,
+            width: 1,
+            height: 1,
+            mediaType: 'native',
+            native: { ortb: nativeOrtb }
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, NATIVE_REQUEST);
+      expect(bids).to.have.lengthOf(1);
+      expect(bids[0].mediaType).to.equal('native');
+      expect(bids[0].native).to.deep.equal({ ortb: nativeOrtb });
+      expect(bids[0].vastXml).to.be.undefined;
+      expect(bids[0].ad).to.be.undefined;
+    });
+
+    it('should parse a native response from result.native assets object when supportNative is enabled', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+      const nativeOrtb = {
+        ver: '1.2',
+        assets: [{ id: 1, title: { text: 'Hello' } }]
+      };
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-native',
+            price: 3.0,
+            mediaType: 'native',
+            native: nativeOrtb
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, NATIVE_REQUEST);
+      expect(bids[0].native.ortb).to.deep.equal(nativeOrtb);
+    });
+
+    it('should parse a native response from wrapped ad JSON when supportNative is enabled', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+      const nativeOrtb = {
+        ver: '1.2',
+        assets: [{ id: 1, title: { text: 'Hello' } }]
+      };
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-native',
+            price: 3.0,
+            mediaType: 'native',
+            ad: JSON.stringify({ native: nativeOrtb })
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, NATIVE_REQUEST);
+      expect(bids[0].native.ortb).to.deep.equal(nativeOrtb);
+    });
+
+    it('should parse a native response from unwrapped ad JSON when supportNative is enabled', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+      const nativeOrtb = {
+        ver: '1.2',
+        assets: [{ id: 1, title: { text: 'Hello' } }]
+      };
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-native',
+            price: 3.0,
+            mediaType: 'native',
+            ad: JSON.stringify(nativeOrtb)
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, NATIVE_REQUEST);
+      expect(bids[0].native.ortb).to.deep.equal(nativeOrtb);
+    });
+
+    it('should skip native results with invalid ad JSON when supportNative is enabled', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-native',
+            price: 3.0,
+            mediaType: 'native',
+            ad: 'not-json'
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, NATIVE_REQUEST);
+      expect(bids).to.be.an('array').that.is.empty;
+    });
+
+    describe('native responses require a normalized nativeOrtbRequest on the matched request', function () {
+      const nativeResult = (extra = {}) => ({
+        creativeId: 'cr-native',
+        price: 3.0,
+        mediaType: 'native',
+        native: { ortb: { ver: '1.2', assets: [{ id: 1, title: { text: 'Hello' } }], link: { url: 'https://example.com' } } },
+        ...extra
+      });
+
+      it('should skip native results when the request has no nativeOrtbRequest (malformed mediaTypes.native)', function () {
+        const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+        const bids = interpretResponse({ body: { results: [nativeResult()] } }, { data: { bidId: 'bid-native' } });
+        expect(bids).to.be.an('array').that.is.empty;
+      });
+
+      it('should skip native results when the nativeOrtbRequest has no assets array', function () {
+        const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+        const request = { data: { bidId: 'bid-native', nativeOrtbRequest: { ver: '1.2' } } };
+        expect(interpretResponse({ body: { results: [nativeResult()] } }, request)).to.be.empty;
+      });
+
+      it('should skip native results when there is no request at all', function () {
+        const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+        expect(interpretResponse({ body: { results: [nativeResult()] } }, undefined)).to.be.empty;
+      });
+
+      it('should still return non-native results of a request without nativeOrtbRequest', function () {
+        const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+        const results = [
+          nativeResult(),
+          { creativeId: 'cr-banner', price: 1.0, width: 300, height: 250, ad: '<div></div>' }
+        ];
+        const bids = interpretResponse({ body: { results } }, { data: { bidId: 'bid-native' } });
+        expect(bids).to.have.lengthOf(1);
+        expect(bids[0].creativeId).to.equal('cr-banner');
+        expect(bids[0].ad).to.equal('<div></div>');
+        expect(bids[0].native).to.be.undefined;
+      });
+
+      it('should match the batched request entry by bidId in singleRequest mode', function () {
+        const stub = sinon.stub(config, 'getConfig').callsFake((key) => key === 'vidazoo.singleRequest' ? true : undefined);
+        try {
+          const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true, { supportNative: true });
+          const request = {
+            data: {
+              bids: [
+                { bidId: 'multi-with-native', nativeOrtbRequest: { ver: '1.2', assets: [{ id: 1, title: { len: 80 } }] } },
+                { bidId: 'multi-without-native' }
+              ]
+            }
+          };
+          const results = [
+            nativeResult({ bidId: 'multi-with-native' }),
+            nativeResult({ bidId: 'multi-without-native' }),
+            nativeResult({ bidId: 'unknown-bid' })
+          ];
+          const bids = interpretResponse({ body: { results } }, request);
+          expect(bids).to.have.lengthOf(1);
+          expect(bids[0].requestId).to.equal('multi-with-native');
+          expect(bids[0].mediaType).to.equal('native');
+        } finally {
+          stub.restore();
+        }
+      });
+    });
+
+    it('should treat mediaType native as video when supportNative is off', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-native',
+            ad: '{"native":{"assets":[{"id":1}]}}',
+            price: 3.0,
+            mediaType: 'native'
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, { data: { bidId: 'bid-native' } });
+      expect(bids).to.have.lengthOf(1);
+      expect(bids[0].mediaType).to.equal('video');
+      expect(bids[0].vastXml).to.equal('{"native":{"assets":[{"id":1}]}}');
+      expect(bids[0].native).to.be.undefined;
+    });
+
     it('should default currency to USD and ttl to TTL_SECONDS when not provided', function () {
       const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
       const serverResponse = {
@@ -1322,6 +1624,76 @@ describe('Vidazoo Bidder Utils Tests', function () {
       };
       const bids = interpretResponse(serverResponse, { data: { bidId: 'bid-noburl' } });
       expect(bids[0].burl).to.be.undefined;
+    });
+
+    it('should include viewableUrl in response when provided', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-viewable',
+            ad: '<div>ad</div>',
+            price: 1.0,
+            width: 300,
+            height: 250,
+            viewableUrl: 'https://viewable.example.com/view'
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, { data: { bidId: 'bid-viewable' } });
+      expect(bids[0].viewableUrl).to.equal('https://viewable.example.com/view');
+    });
+
+    it('should not include viewableUrl when not provided', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-noviewable',
+            ad: '<div>ad</div>',
+            price: 1.0,
+            width: 300,
+            height: 250
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, { data: { bidId: 'bid-noviewable' } });
+      expect(bids[0].viewableUrl).to.be.undefined;
+    });
+
+    it('should include renderSuccessUrl in response when provided', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-rendersuccess',
+            ad: '<div>ad</div>',
+            price: 1.0,
+            width: 300,
+            height: 250,
+            renderSuccessUrl: 'https://render.example.com/success'
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, { data: { bidId: 'bid-rendersuccess' } });
+      expect(bids[0].renderSuccessUrl).to.equal('https://render.example.com/success');
+    });
+
+    it('should not include renderSuccessUrl when not provided', function () {
+      const interpretResponse = utilities.createInterpretResponseFn('vidazoo', true);
+      const serverResponse = {
+        body: {
+          results: [{
+            creativeId: 'cr-norendersuccess',
+            ad: '<div>ad</div>',
+            price: 1.0,
+            width: 300,
+            height: 250
+          }]
+        }
+      };
+      const bids = interpretResponse(serverResponse, { data: { bidId: 'bid-norendersuccess' } });
+      expect(bids[0].renderSuccessUrl).to.be.undefined;
     });
 
     it('should use metaData directly when provided', function () {
@@ -1445,7 +1817,8 @@ describe('Vidazoo Bidder Utils Tests', function () {
         site: { cat: [], pagecat: [], content: { data: [], language: 'en' } },
         user: { data: [] },
         device: {},
-        regs: { coppa: 0 }
+        regs: { coppa: 0 },
+        source: { ext: { schain: null } }
       }
     };
 
@@ -1554,6 +1927,80 @@ describe('Vidazoo Bidder Utils Tests', function () {
       expect(bannerRequests).to.have.lengthOf(1);
       expect(bannerRequests[0].data.bids).to.have.lengthOf(1);
       expect(videoRequests).to.have.lengthOf(2);
+    });
+
+    it('should send native bids individually in singleRequest mode when supportNative is enabled', function () {
+      sandbox.stub(config, 'getConfig').callsFake((key) => {
+        if (key === 'vidazoo.singleRequest') return true;
+        return undefined;
+      });
+      const buildRequests = utilities.createBuildRequestsFn(createDomain, null, storageMock, 'vidazoo', '1.0.0', true, { supportNative: true });
+      const bids = [
+        makeBid({ bidId: 'banner-1', mediaTypes: { banner: { sizes: [[300, 250]] } } }),
+        makeBid({ bidId: 'native-1', mediaTypes: { native: { ortb: { assets: [{ id: 1, title: { len: 80 } }] } } }, nativeOrtbRequest: { assets: [{ id: 1, title: { len: 80 } }] } }),
+        makeBid({ bidId: 'native-2', mediaTypes: { native: { ortb: { assets: [{ id: 2, title: { len: 80 } }] } } }, nativeOrtbRequest: { assets: [{ id: 2, title: { len: 80 } }] } })
+      ];
+      const requests = buildRequests(bids, baseBidderRequest);
+      const bannerRequests = requests.filter(r => Array.isArray(r.data?.bids));
+      const nativeRequests = requests.filter(r => r.data?.bidId && String(r.data.bidId).startsWith('native'));
+      expect(bannerRequests).to.have.lengthOf(1);
+      expect(bannerRequests[0].data.bids).to.have.lengthOf(1);
+      expect(nativeRequests).to.have.lengthOf(2);
+    });
+
+    describe('nativeOrtbRequest is only sent while native is an active media type', function () {
+      const nativeOrtbRequest = { ver: '1.2', assets: [{ id: 1, required: 1, title: { len: 80 } }] };
+      const nativeMediaType = { ortb: nativeOrtbRequest };
+
+      it('should not send nativeOrtbRequest when mediaTypes was narrowed to banner/video', function () {
+        const buildRequests = utilities.createBuildRequestsFn(createDomain, null, storageMock, 'vidazoo', '1.0.0', false, { supportNative: true });
+        const bid = makeBid({
+          mediaTypes: { banner: { sizes: [[300, 250]] }, video: { playerSize: [[640, 480]] } },
+          nativeOrtbRequest
+        });
+        const requests = buildRequests([bid], baseBidderRequest);
+        expect(requests).to.have.lengthOf(1);
+        expect(requests[0].data).to.not.have.property('nativeOrtbRequest');
+      });
+
+      it('should send nativeOrtbRequest for a multiformat bid with native still active', function () {
+        const buildRequests = utilities.createBuildRequestsFn(createDomain, null, storageMock, 'vidazoo', '1.0.0', false, { supportNative: true });
+        const bid = makeBid({
+          mediaTypes: { banner: { sizes: [[300, 250]] }, native: nativeMediaType },
+          nativeOrtbRequest
+        });
+        const requests = buildRequests([bid], baseBidderRequest);
+        expect(requests[0].data.nativeOrtbRequest).to.deep.equal(nativeOrtbRequest);
+      });
+
+      it('should apply the same rule to bids batched in singleRequest mode', function () {
+        sandbox.stub(config, 'getConfig').callsFake((key) => key === 'vidazoo.singleRequest' ? true : undefined);
+        const buildRequests = utilities.createBuildRequestsFn(createDomain, null, storageMock, 'vidazoo', '1.0.0', true, { supportNative: true });
+        const bids = [
+          makeBid({ bidId: 'narrowed', mediaTypes: { banner: { sizes: [[300, 250]] } }, nativeOrtbRequest }),
+          makeBid({ bidId: 'multiformat', mediaTypes: { banner: { sizes: [[300, 250]] }, native: nativeMediaType }, nativeOrtbRequest })
+        ];
+        const requests = buildRequests(bids, baseBidderRequest);
+        expect(requests).to.have.lengthOf(1);
+        const [narrowed, multiformat] = requests[0].data.bids;
+        expect(narrowed.bidId).to.equal('narrowed');
+        expect(narrowed).to.not.have.property('nativeOrtbRequest');
+        expect(multiformat.bidId).to.equal('multiformat');
+        expect(multiformat.nativeOrtbRequest).to.deep.equal(nativeOrtbRequest);
+      });
+    });
+
+    it('should drop native-only bids in singleRequest mode when supportNative is off', function () {
+      sandbox.stub(config, 'getConfig').callsFake((key) => {
+        if (key === 'vidazoo.singleRequest') return true;
+        return undefined;
+      });
+      const buildRequests = utilities.createBuildRequestsFn(createDomain, null, storageMock, 'vidazoo', '1.0.0', true);
+      const bids = [
+        makeBid({ bidId: 'native-1', mediaTypes: { native: { ortb: { assets: [{ id: 1, title: { len: 80 } }] } } } })
+      ];
+      const requests = buildRequests(bids, baseBidderRequest);
+      expect(requests).to.have.lengthOf(0);
     });
 
     it('should not use singleRequest mode for non-allowed bidders', function () {
@@ -1670,4 +2117,4 @@ describe('Vidazoo Bidder Utils Tests', function () {
       expect(requests[0].url).to.include('twist.win');
     });
   });
-})
+});

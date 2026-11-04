@@ -17,7 +17,7 @@ describe('ID5 analytics adapter', () => {
 
   beforeEach(() => {
     // to enforce tcfControl initialization when running in single test mode
-    expect(enrichEidsRule).to.exist
+    expect(enrichEidsRule).to.exist;
     config = {
       options: {
         partnerId: 12349,
@@ -147,7 +147,7 @@ describe('ID5 analytics adapter', () => {
       // Wait as gzip stream is async, we need to wait until it is processed.  3 requests: config, tcf2Enforcement, auctionEnd
       await waitForRequests(3);
       const eventReq = server.requests[2];
-      if (utils.isGzipCompressionSupported()) {
+      if (await utils.isGzipCompressionSupported()) {
         expect(eventReq.requestHeaders['Content-Encoding']).to.equal('gzip');
         expect(eventReq.requestBody).to.be.instanceof(Uint8Array);
       } else {    // compression is not supported in some test browsers, so we expect the event to be uncompressed.
@@ -176,7 +176,7 @@ describe('ID5 analytics adapter', () => {
 
       const body3 = JSON.parse(server.requests[3].requestBody);
       expect(body3.event).to.equal('bidWon');
-    })
+    });
 
     it('filters unwanted IDs from the events it sends', () => {
       auction.adUnits[0].bids = [{
@@ -508,7 +508,7 @@ describe('ID5 analytics adapter', () => {
         'meta': {
           'advertiserId': 4388779
         }
-      }]
+      }];
       auction.adUnits[0].bids = [{
         'bidder': 'appnexus',
         'userId': {

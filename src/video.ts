@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { hook } from './hook.js';
 import { auctionManager } from './auctionManager.js';
 import type { VideoBid } from "./bidfactory.ts";
-import { ADPOD, type BaseMediaType } from "./mediaTypes.ts";
+import { type BaseMediaType } from "./mediaTypes.ts";
 import type { ORTBImp } from "./types/ortb/request.d.ts";
 import type { Size } from "./types/common.d.ts";
 import type { AdUnitDefinition } from "./adUnits.ts";
@@ -56,11 +56,22 @@ const ORTB_PARAMS = [
  */
 export const ORTB_VIDEO_PARAMS = new Map(ORTB_PARAMS);
 
-export type VideoContext = typeof INSTREAM | typeof OUTSTREAM | typeof ADPOD;
+function hasRenderer(subject: { renderer?: unknown; safeRenderer?: unknown } | null | undefined): boolean {
+  return !!(subject?.renderer || subject?.safeRenderer);
+}
 
-export interface VideoMediaType extends BaseMediaType, Pick<ORTBImp['video'], (typeof ORTB_PARAMS)[number][0]> {
-  context: VideoContext;
+export type VideoContext = typeof INSTREAM | typeof OUTSTREAM;
+
+export interface VideoMediaType extends BaseMediaType, Partial<Pick<NonNullable<ORTBImp['video']>, (typeof ORTB_PARAMS)[number][0]>> {
+  context?: VideoContext;
   playerSize?: Size | Size[];
+  /**
+   * Set to false to skip remote and local caching by Prebid.js for this ad unit's
+   * video bids. Omitted or true uses the global configuration and existing outstream rules.
+   * This does not control caching by Prebid Server or bidders, or remove supplied
+   * VAST URLs and cache keys.
+   */
+  cache?: boolean;
 }
 
 export function fillVideoDefaults(adUnit: AdUnitDefinition) {
@@ -93,10 +104,10 @@ export function fillVideoDefaults(adUnit: AdUnitDefinition) {
         } else {
           video[prop] = playerSize[i];
         }
-      })
+      });
     }
     if (conflict) {
-      logWarn(`Ad unit "${adUnit.code} has conflicting playerSize and w/h`, adUnit)
+      logWarn(`Ad unit "${adUnit.code}" has conflicting playerSize and w/h`, adUnit);
     }
   }
 }
@@ -132,7 +143,7 @@ export const checkVideoBidSetup = hook('sync', function(bid: VideoBid, adUnit, v
   if (videoMediaType && (useCacheKey || context !== OUTSTREAM)) {
     // xml-only video bids require a prebid cache url
     const { url, useLocal, allowVastXmlOnly } = config.getConfig('cache') || {};
-    if ((!url && !useLocal) && bid.vastXml && !bid.vastUrl) {
+    if ((!url && !useLocal) && bid.vastXml && !bid.vastUrl && videoMediaType.cache !== false) {
       if (allowVastXmlOnly === true) {
         logWarn(`This bid contains only vastXml, and caching is disabled. Proceeding because cache.allowVastXmlOnly is enabled.`);
         return true;
@@ -150,7 +161,7 @@ export const checkVideoBidSetup = hook('sync', function(bid: VideoBid, adUnit, v
 
   // outstream bids require a renderer on the bid or pub-defined on adunit
   if (context === OUTSTREAM && !useCacheKey) {
-    return !!(bid.renderer || (adUnit && adUnit.renderer) || videoMediaType.renderer);
+    return hasRenderer(bid) || hasRenderer(adUnit) || hasRenderer(videoMediaType);
   }
 
   return true;

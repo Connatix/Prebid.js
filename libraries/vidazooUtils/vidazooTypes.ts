@@ -12,7 +12,7 @@ export interface VidazooBaseBidderParams {
   /**
    * The minimum bid value desired. Adapter will not respond with bids lower than this value
    */
-  bidFloor: number;
+  bidFloor?: number;
   /**
    * Placement id on platform.
    */
@@ -29,10 +29,11 @@ export interface VidazooBaseBidderParams {
  * Bid floor value.
  */
 export type Ext = {
-  [key: string]: Record<string, any>;
+  [key: string]: Record<string, any>
+} & {
   customParameters?: CustomParameters;
-}
+};
 
 type CustomParameters = {
   mediaTypes?: MediaTypes
-}
+};

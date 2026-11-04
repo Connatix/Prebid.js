@@ -1,5 +1,5 @@
 import { registerBidder } from '../src/adapters/bidderFactory.js';
-import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { getStorageManager } from '../src/storageManager.js';
 import {
   createSessionId,
@@ -12,16 +12,18 @@ import {
   createBuildRequestsFn,
   createInterpretResponseFn,
   onBidBillable,
+  onAdRenderSucceeded,
+  onBidViewable,
 } from '../libraries/vidazooUtils/bidderUtils.js';
 import { OPT_CACHE_KEY, OPT_TIME_KEY, ALIASES } from '../libraries/vidazooUtils/constants.js';
 
 /**
- * @typedef {import('./vidazooBidAdapterTypes.d.ts').VidazooBidRequestParams} VidazooBidRequestParams
+ * @typedef {import('./vidazooBidAdapter.d.ts').VidazooBidRequestParams} VidazooBidRequestParams
  */
 
 const GVLID = 744;
 const DEFAULT_SUB_DOMAIN = 'prebid';
-const DEFAULT_BASE_ULR = 'cootlogix.com'
+const DEFAULT_BASE_ULR = 'cootlogix.com';
 const BIDDER_CODE = 'vidazoo';
 const BIDDER_VERSION = '1.0.0';
 export const storage = getStorageManager({ bidderCode: BIDDER_CODE });
@@ -42,15 +44,16 @@ function createUniqueRequestData(hashUrl) {
   };
 }
 
-const buildRequests = createBuildRequestsFn(createDomain, createUniqueRequestData, storage, BIDDER_CODE, BIDDER_VERSION, true);
-const interpretResponse = createInterpretResponseFn(BIDDER_CODE, true);
+const NATIVE_OPTIONS = { supportNative: true };
+const buildRequests = createBuildRequestsFn(createDomain, createUniqueRequestData, storage, BIDDER_CODE, BIDDER_VERSION, true, NATIVE_OPTIONS);
+const interpretResponse = createInterpretResponseFn(BIDDER_CODE, true, NATIVE_OPTIONS);
 const getUserSyncs = createUserSyncGetter();
 
 export const spec = {
   code: BIDDER_CODE,
   version: BIDDER_VERSION,
   gvlid: GVLID,
-  supportedMediaTypes: [BANNER, VIDEO],
+  supportedMediaTypes: [BANNER, VIDEO, NATIVE],
   aliases: ALIASES,
   isBidRequestValid,
   buildRequests,
@@ -58,6 +61,8 @@ export const spec = {
   getUserSyncs,
   onBidWon,
   onBidBillable,
+  onAdRenderSucceeded,
+  onBidViewable
 };
 
 registerBidder(spec);
